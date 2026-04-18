@@ -169,6 +169,7 @@ TTS_ENGINES = {
     "chatterbox_turbo": "Chatterbox Turbo",
     "tada": "TADA",
     "kokoro": "Kokoro",
+    "fish_speech": "Fish Audio S2 Pro",
 }
 
 
@@ -313,6 +314,14 @@ def _get_non_qwen_tts_configs() -> list[ModelConfig]:
             hf_repo_id="hexgrad/Kokoro-82M",
             size_mb=350,
             languages=["en", "es", "fr", "hi", "it", "pt", "ja", "zh"],
+        ),
+        ModelConfig(
+            model_name="fish-speech-s2-pro",
+            display_name="Fish Audio S2 Pro",
+            engine="fish_speech",
+            hf_repo_id="mlx-community/fish-audio-s2-pro",
+            size_mb=3500,
+            languages=["en", "zh", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
         ),
     ]
 
@@ -575,6 +584,10 @@ def get_tts_backend_for_engine(engine: str) -> TTSBackend:
             from .qwen_custom_voice_backend import QwenCustomVoiceBackend
 
             backend = QwenCustomVoiceBackend()
+        elif engine == "fish_speech":
+            from .fish_speech_backend import FishSpeechTTSBackend
+
+            backend = FishSpeechTTSBackend()
         else:
             raise ValueError(f"Unknown TTS engine: {engine}. Supported: {list(TTS_ENGINES.keys())}")
 
