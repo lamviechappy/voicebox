@@ -3,12 +3,13 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Play, Square, RotateCcw, AlertCircle, CheckCircle2, FolderPlus, Check } from 'lucide-react';
+import { Play, Square, RotateCcw, AlertCircle, CheckCircle2, FolderPlus, Check, Sparkles, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/components/ui/use-toast';
 import { usePlayerStore } from '@/stores/playerStore';
 import { useProfiles } from '@/lib/hooks/useProfiles';
@@ -30,6 +31,27 @@ const ENGINE_OPTIONS = [
   { value: 'kokoro', label: 'Kokoro' },
   { value: 'fish_speech', label: 'Fish Audio S2 Pro' },
 ];
+
+// Emotion presets for Magic Wand
+const EMOTION_PRESETS = [
+  { category: 'Positive', emotions: ['(happy)', '(excited)', '(delighted)', '(satisfied)', '(proud)', '(grateful)', '(confident)', '(relaxed)', '(hopeful)'] },
+  { category: 'Negative', emotions: ['(sad)', '(angry)', '(frustrated)', '(upset)', '(worried)', '(scared)', '(nervous)', '(disappointed)', '(bored)'] },
+  { category: 'Complex', emotions: ['(calm)', '(curious)', '(surprised)', '(confused)', '(uncertain)', '(sarcastic)', '(determined)', '(nostalgic)'] },
+  { category: 'Tones', emotions: ['(in a hurry)', '(shouting)', '(whispering)', '(soft tone)'] },
+  { category: 'Effects', emotions: ['[laughing]', '[chuckling]', '[sighing]', '[panting]', '[groaning]'] },
+  { category: 'Pauses', emotions: ['(break)', '(long-break)'] },
+];
+
+// Fish Audio emotion guide for AI (used when enhancing)
+const EMOTION_GUIDE = `Fish Audio Emotion Tags:
+- Basic emotions: (happy), (sad), (angry), (excited), (calm), (nervous), (confident), (surprised), (satisfied), (delighted), (scared), (worried), (upset), (frustrated), (depressed), (embarrassed), (disgusted), (moved), (proud), (relaxed), (grateful), (curious), (sarcastic)
+- Advanced: (disdainful), (anxious), (hysterical), (indifferent), (uncertain), (confused), (disappointed), (regretful), (guilty), (ashamed), (jealous), (hopeful), (optimistic), (pessimistic), (nostalgic), (lonely), (bored), (sympathetic), (compassionate), (determined), (resigned)
+- Tones: (in a hurry), (shouting), (screaming), (whispering), (soft tone)
+- Effects: [laughing], [chuckling], [sobbing], [crying loudly], [sighing], [groaning], [panting], [gasping]
+- Pauses: (break), (long-break)
+
+Use format: [SpeakerName] (emotion) Text
+Example: [Emily] (happy) Hello there! [laughing]`;
 
 function formatDuration(seconds: number | null | undefined): string {
   if (seconds == null) return '—';
@@ -77,6 +99,11 @@ function StoryFlowMain() {
   const [generationResults, setGenerationResults] = useState<StoryFlowGenerationResult[]>([]);
   // Track number of turns selected when generation started
   const [generationStartedWithCount, setGenerationStartedWithCount] = useState<number>(0);
+
+  // Magic Wand emotion state
+  const [emotionPopoverOpen, setEmotionPopoverOpen] = useState(false);
+  const [selectedEmotion, setSelectedEmotion] = useState<string>('');
+  const [isApplyingEmotion, setIsApplyingEmotion] = useState(false);
 
   const { data: profiles } = useProfiles();
   const { data: stories } = useStories();
@@ -153,6 +180,61 @@ function StoryFlowMain() {
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [script, profiles, profileSettings, initProfileSettings, parseScript]);
+
+  // Apply emotion tag to script
+  const handleApplyEmotion = useCallback(() => {
+    if (!selectedEmotion || !script.trim()) return;
+    setIsApplyingEmotion(true);
+
+    try {
+      // Apply emotion to each line in the script
+      const lines = script.split('\n');
+      const enhancedLines = lines.map((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return trimmed;
+        // If line starts with [SpeakerName], add emotion after the bracket
+        if (trimmed.match(/^\[.+\]/)) {
+          // Check if already has an emotion
+          if (trimmed.match(/\([a-zA-Z]+\)/)) {
+            // Replace existing emotion
+            return trimmed.replace(/(\([a-zA-Z]+\))/, selectedEmotion);
+          }
+          // Add emotion after speaker name
+          return trimmed.replace(/^(\[[^\]]+\])/, `$1 ${selectedEmotion}`);
+        }
+        // Just prepend emotion if no speaker format
+        return `${selectedEmotion} ${trimmed}`;
+      });
+
+      setScript(enhancedLines.join('\n'));
+      setEmotionPopoverOpen(false);
+      toast({
+        title: 'Emotion applied',
+        description: `Added ${selectedEmotion} to script`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Failed to apply emotion',
+        description: err instanceof Error ? err.message : String(err),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsApplyingEmotion(false);
+    }
+  }, [selectedEmotion, script, toast]);
+
+  // Clear emotions from script (remove all emotion tags)
+  const handleClearEmotions = useCallback(() => {
+    const cleaned = script.replace(/\([a-zA-Z]+\)/g, '').replace(/\[([a-zA-Z]+)\]/g, (match) => {
+      // Keep audio effect brackets but remove text inside
+      return match.startsWith('[') ? match : match;
+    });
+    setScript(cleaned);
+    toast({
+      title: 'Emotions cleared',
+      description: 'Removed emotion tags from script',
+    });
+  }, [script, toast]);
 
   const handleGenerate = useCallback(async () => {
     if (!parseResult || !selectedStoryId) {
@@ -416,6 +498,68 @@ function StoryFlowMain() {
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-sm">Script</h2>
               <div className="flex gap-2">
+                {/* Magic Wand Emotion Button */}
+                <Popover open={emotionPopoverOpen} onOpenChange={setEmotionPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      title="Add emotion to script"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                      Magic Wand
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-3" align="end">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold">Emotion Presets</h3>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs"
+                          onClick={handleClearEmotions}
+                        >
+                          Clear All
+                        </Button>
+                      </div>
+                      {EMOTION_PRESETS.map((preset) => (
+                        <div key={preset.category} className="space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground">{preset.category}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {preset.emotions.map((emotion) => (
+                              <button
+                                key={emotion}
+                                type="button"
+                                className={`
+                                  px-1.5 py-0.5 text-[10px] rounded border transition-colors
+                                  ${selectedEmotion === emotion
+                                    ? 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-400'
+                                    : 'bg-muted/50 border-border hover:bg-muted'}
+                                `}
+                                onClick={() => setSelectedEmotion(emotion)}
+                              >
+                                {emotion}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="pt-2 border-t">
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={handleApplyEmotion}
+                          disabled={!selectedEmotion || isApplyingEmotion}
+                        >
+                          {isApplyingEmotion ? 'Applying...' : `Apply ${selectedEmotion || 'Emotion'}`}
+                        </Button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
                 {appState !== 'idle' && appState !== 'generating' && (
                   <Button variant="ghost" size="sm" onClick={handleReset}><RotateCcw className="h-3 w-3 mr-1" />Reset</Button>
                 )}
