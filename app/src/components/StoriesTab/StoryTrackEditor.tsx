@@ -661,6 +661,64 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     setSelectedClipIds(new Set());
   }, [selectedClipIds, storyId, removeItem, toast]);
 
+  // Move selected clips by milliseconds
+  const moveSelectedClips = useCallback((deltaMs: number) => {
+    const idsToMove = Array.from(selectedClipIds);
+    if (idsToMove.length === 0) return;
+
+    // Get all selected items sorted by time
+    const selectedItemsList = sortedItems.filter((i) => idsToMove.includes(i.id));
+    if (selectedItemsList.length === 0) return;
+
+    // Calculate new positions
+    const updates = selectedItemsList.map((item) => ({
+      itemId: item.id,
+      newStartTime: Math.max(0, item.start_time_ms + deltaMs),
+      newTrack: item.track,
+    }));
+
+    // Apply updates
+    updates.forEach(({ itemId, newStartTime, newTrack }) => {
+      moveItem.mutate(
+        { storyId, itemId, data: { start_time_ms: newStartTime, track: newTrack } },
+        {
+          onError: (error) => {
+            toast({
+              title: 'Failed to move clip',
+              description: error instanceof Error ? error.message : String(error),
+              variant: 'destructive',
+            });
+          },
+        },
+      );
+    });
+  }, [selectedClipIds, sortedItems, storyId, moveItem, toast]);
+
+  // Move selected clips to different track
+  const moveSelectedClipsToTrack = useCallback((deltaTrack: number) => {
+    const idsToMove = Array.from(selectedClipIds);
+    if (idsToMove.length === 0) return;
+
+    const selectedItemsList = sortedItems.filter((i) => idsToMove.includes(i.id));
+    if (selectedItemsList.length === 0) return;
+
+    selectedItemsList.forEach((item) => {
+      const newTrack = item.track + deltaTrack;
+      moveItem.mutate(
+        { storyId, itemId: item.id, data: { track: newTrack, start_time_ms: item.start_time_ms } },
+        {
+          onError: (error) => {
+            toast({
+              title: 'Failed to move clip',
+              description: error instanceof Error ? error.message : String(error),
+              variant: 'destructive',
+            });
+          },
+        },
+      );
+    });
+  }, [selectedClipIds, sortedItems, storyId, moveItem, toast]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -689,6 +747,34 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
           e.preventDefault();
           handleDelete();
         }
+      } else if (e.key === 'ArrowLeft') {
+        // Arrow Left: move clips left
+        if (selectedClipIds.size > 0) {
+          e.preventDefault();
+          const stepMs = e.shiftKey ? 1000 : e.altKey ? 200 : 1000; // Shift=1s, Option=0.2s
+          moveSelectedClips(-stepMs);
+        }
+      } else if (e.key === 'ArrowRight') {
+        // Arrow Right: move clips right
+        if (selectedClipIds.size > 0) {
+          e.preventDefault();
+          const stepMs = e.shiftKey ? 1000 : e.altKey ? 200 : 1000; // Shift=1s, Option=0.2s
+          moveSelectedClips(stepMs);
+        }
+      } else if (e.key === 'ArrowUp') {
+        // Arrow Up: move clips to upper track
+        if (selectedClipIds.size > 0) {
+          e.preventDefault();
+          const deltaTrack = e.shiftKey ? 1 : 0;
+          if (deltaTrack !== 0) moveSelectedClipsToTrack(deltaTrack);
+        }
+      } else if (e.key === 'ArrowDown') {
+        // Arrow Down: move clips to lower track
+        if (selectedClipIds.size > 0) {
+          e.preventDefault();
+          const deltaTrack = e.shiftKey ? -1 : 0;
+          if (deltaTrack !== 0) moveSelectedClipsToTrack(deltaTrack);
+        }
       }
     };
 
@@ -696,11 +782,14 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     selectedClipId,
+    selectedClipIds,
     handleSplit,
     handleDuplicate,
     handleDelete,
     setSelectedClipId,
     handlePlayPause,
+    moveSelectedClips,
+    moveSelectedClipsToTrack,
   ]);
 
   // Add global mouse listeners for trimming
