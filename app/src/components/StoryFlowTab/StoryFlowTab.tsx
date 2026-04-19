@@ -1,3 +1,7 @@
+'use client';
+
+'use client';
+
 import { useState, useCallback, useEffect } from 'react';
 import { Play, Square, RotateCcw, AlertCircle, CheckCircle2, FolderPlus, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -71,6 +75,8 @@ function StoryFlowMain() {
 
   const [parseResult, setParseResult] = useState<StoryFlowParseResult | null>(null);
   const [generationResults, setGenerationResults] = useState<StoryFlowGenerationResult[]>([]);
+  // Track number of turns selected when generation started
+  const [generationStartedWithCount, setGenerationStartedWithCount] = useState<number>(0);
 
   const { data: profiles } = useProfiles();
   const { data: stories } = useStories();
@@ -161,6 +167,8 @@ function StoryFlowMain() {
     setAppState('generating');
     setGenerationResults([]);
     setIsPlayingAll(false);
+    // Track how many turns we're generating
+    setGenerationStartedWithCount(turnSelections.size);
 
     try {
       // Filter script to only include selected turns
@@ -183,6 +191,8 @@ function StoryFlowMain() {
         turn_index: [...turnSelections].sort((a, b) => a - b)[i],
       }));
       setGenerationResults(resultsWithIndices);
+      // Auto-select all generated results for story
+      setStorySelections(new Set(resultsWithIndices.map((_, i) => i)));
       setAppState('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -308,6 +318,16 @@ function StoryFlowMain() {
   const selectedCount = turnSelections.size;
   const storySelectedCount = storySelections.size;
 
+  // Extract unique speaker names from parsed script
+  const speakersInScript = parseResult
+    ? [...new Set(parseResult.turns.map((t) => t.speaker_name))]
+    : [];
+
+  // Filter profiles to only show those in script
+  const relevantProfiles = profiles?.filter((p) =>
+    appState === 'idle' ? true : speakersInScript.includes(p.name)
+  ) ?? [];
+
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <div className="flex-1 min-h-0 flex gap-6 overflow-hidden">
@@ -315,9 +335,9 @@ function StoryFlowMain() {
         <div className="flex flex-col min-h-0 overflow-hidden w-full max-w-[360px] shrink-0 gap-4">
           <Card className="p-4 flex flex-col gap-3 overflow-y-auto">
             <h2 className="font-semibold text-sm">Profile Settings</h2>
-            {hasProfiles ? (
+            {relevantProfiles.length > 0 ? (
               <div className="flex flex-col gap-3">
-                {profiles!.map((profile) => {
+                {relevantProfiles.map((profile) => {
                   const settings = profileSettings[profile.name] || {
                     language: profile.language,
                     engine: profile.default_engine ?? 'qwen',
@@ -415,14 +435,14 @@ function StoryFlowMain() {
               value={script}
               onChange={(e) => setScript(e.target.value)}
               placeholder={`[ProfileName] Your dialogue...`}
-              className="min-h-[100px] font-mono text-xs resize-none"
+              className="min-h-[100px] max-h-[200px] font-mono text-xs resize-none overflow-y-auto"
               disabled={appState === 'generating' || appState === 'done'}
             />
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">Use [ProfileName] format.</p>
-              {hasProfiles && (
+              {relevantProfiles.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {profiles!.map((p) => (
+                  {relevantProfiles.map((p) => (
                     <Badge key={p.id} variant="outline" className="text-[10px] h-5 capitalize">{p.name}</Badge>
                   ))}
                 </div>
@@ -452,7 +472,7 @@ function StoryFlowMain() {
                   <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={deselectAllTurns}>None</Button>
                 </div>
               </div>
-              <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto">
+              <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto">
                 {parseResult.turns.map((turn, idx) => (
                   <div
                     key={turn.turn_index}
@@ -483,12 +503,12 @@ function StoryFlowMain() {
           {appState === 'generating' && parseResult && (
             <Card className="p-4 shrink-0">
               <p className="text-xs text-muted-foreground mb-1">
-                Generating {generationResults.length + 1} of {parseResult.total_turns}...
+                Generating {generationResults.length + 1} of {generationStartedWithCount}...
               </p>
               <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-accent transition-all"
-                  style={{ width: `${(generationResults.length / parseResult.total_turns) * 100}%` }}
+                  style={{ width: `${generationStartedWithCount > 0 ? (generationResults.length / generationStartedWithCount) * 100 : 0}%` }}
                 />
               </div>
             </Card>
