@@ -1,5 +1,5 @@
 import { Link, useMatchRoute } from '@tanstack/react-router';
-import { AudioLines, Box, Mic, Settings, Speaker, Volume2, Wand2 } from 'lucide-react';
+import { AudioLines, AudioWaveform, Box, Mic, Settings, Speaker, Volume2, Wand2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import voiceboxLogo from '@/assets/voicebox-logo.png';
 import { cn } from '@/lib/utils/cn';
@@ -15,6 +15,7 @@ interface SidebarProps {
 const tabs = [
   { id: 'main', path: '/', icon: Volume2, label: 'Generate' },
   { id: 'stories', path: '/stories', icon: AudioLines, label: 'Stories' },
+  { id: 'story-flow', path: '/story-flow', icon: AudioWaveform, label: 'Story-Flow' },
   { id: 'voices', path: '/voices', icon: Mic, label: 'Voices' },
   { id: 'effects', path: '/effects', icon: Wand2, label: 'Effects' },
   { id: 'audio', path: '/audio', icon: Speaker, label: 'Audio' },

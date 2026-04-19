@@ -19,6 +19,7 @@ import { LogsPage } from '@/components/ServerTab/LogsPage';
 import { SettingsLayout } from '@/components/ServerTab/ServerTab';
 import { Sidebar } from '@/components/Sidebar';
 import { StoriesTab } from '@/components/StoriesTab/StoriesTab';
+import { StoryFlowTab } from '@/components/StoryFlowTab/StoryFlowTab';
 import { Toaster } from '@/components/ui/toaster';
 import { VoicesTab } from '@/components/VoicesTab/VoicesTab';
 import { useGenerationProgress } from '@/lib/hooks/useGenerationProgress';
@@ -102,6 +103,13 @@ const storiesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/stories',
   component: StoriesTab,
+});
+
+// Story-Flow route
+const storyFlowRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/story-flow',
+  component: StoryFlowTab,
 });
 
 // Voices route
@@ -189,6 +197,7 @@ const serverRedirectRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   storiesRoute,
+  storyFlowRoute,
   voicesRoute,
   audioRoute,
   effectsRoute,

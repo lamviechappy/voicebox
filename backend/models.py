@@ -519,3 +519,88 @@ class AvailableEffectsResponse(BaseModel):
     """Response listing all available effect types."""
 
     effects: List[AvailableEffect]
+
+
+# === Story-Flow Models ===
+
+# Language code pattern - same as GenerationRequest
+LANGUAGE_PATTERN = "^(zh|en|ja|ko|de|fr|ru|pt|es|it|he|ar|da|el|fi|hi|ms|nl|no|pl|sv|sw|tr)$"
+
+# Engine pattern - extended to include all TTS engines
+ENGINE_PATTERN = "^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|fish_speech)$"
+
+# Model size pattern
+MODEL_SIZE_PATTERN = "^(1\\.7B|0\\.6B|1B|3B)$"
+
+
+class StoryFlowSpeakerConfig(BaseModel):
+    """Configuration for a single speaker in Story-Flow."""
+
+    name: str = Field(..., min_length=1, max_length=50, description="Speaker name (e.g., Mark, Emily)")
+    language: str = Field(default="en", pattern=LANGUAGE_PATTERN)
+    engine: str = Field(default="fish_speech", pattern=ENGINE_PATTERN)
+    model_size: Optional[str] = Field(default="1.7B", pattern=MODEL_SIZE_PATTERN)
+    voice_profile_id: Optional[str] = Field(None, description="Voice profile ID for this speaker")
+    effects_chain: Optional[List["EffectConfig"]] = Field(None, description="Effects chain for this speaker")
+
+
+class StoryFlowParseRequest(BaseModel):
+    """Request to parse a story script without generating."""
+
+    script: str = Field(..., min_length=1, max_length=50000, description="Raw story script with [Speaker] markers")
+    speakers: List[StoryFlowSpeakerConfig] = Field(
+        ...,
+        min_length=1,
+        description="List of speaker configurations in order",
+    )
+
+
+class StoryFlowTurn(BaseModel):
+    """A single parsed turn in the story script."""
+
+    turn_index: int
+    speaker_name: str
+    speaker_config: StoryFlowSpeakerConfig
+    text: str
+
+
+class StoryFlowParseResponse(BaseModel):
+    """Response after parsing a story script."""
+
+    turns: List[StoryFlowTurn]
+    total_turns: int
+    total_characters: int
+
+
+class StoryFlowGenerateRequest(BaseModel):
+    """Request to generate audio for a full story script."""
+
+    script: str = Field(..., min_length=1, max_length=50000)
+    speakers: List[StoryFlowSpeakerConfig] = Field(..., min_length=1, max_length=10)
+    generate_in_order: bool = Field(
+        default=True,
+        description="Generate turns sequentially (True) or all in parallel (False)",
+    )
+
+
+class StoryFlowGenerationResult(BaseModel):
+    """Result for a single turn after generation."""
+
+    turn_index: int
+    speaker_name: str
+    generation_id: str
+    text: str
+    audio_path: Optional[str] = None
+    duration: Optional[float] = None
+    status: str = "completed"  # "completed" | "failed"
+    error: Optional[str] = None
+
+
+class StoryFlowGenerateResponse(BaseModel):
+    """Response after generating a full story script."""
+
+    results: List[StoryFlowGenerationResult]
+    total_turns: int
+    successful_turns: int
+    failed_turns: int
+    total_duration: float = Field(default=0.0, description="Total audio duration in seconds")
