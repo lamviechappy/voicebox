@@ -238,6 +238,12 @@ class ApiClient {
     });
   }
 
+  async cancelGeneration(generationId: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/generate/${generationId}/cancel`, {
+      method: 'POST',
+    });
+  }
+
   async regenerateGeneration(generationId: string): Promise<GenerationResponse> {
     return this.request<GenerationResponse>(`/generate/${generationId}/regenerate`, {
       method: 'POST',
@@ -388,7 +394,9 @@ class ApiClient {
     return this.request<{ path: string }>('/models/cache-dir');
   }
 
-  async migrateModels(destination: string): Promise<{ source: string; destination: string }> {
+  async migrateModels(
+    destination: string,
+  ): Promise<{ source: string; destination: string; moved: number; errors: string[] }> {
     return this.request('/models/migrate', {
       method: 'POST',
       body: JSON.stringify({ destination }),
