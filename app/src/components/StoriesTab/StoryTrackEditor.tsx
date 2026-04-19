@@ -155,6 +155,38 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
   const selectedClipId = useStoryStore((state) => state.selectedClipId);
   const setSelectedClipId = useStoryStore((state) => state.setSelectedClipId);
 
+  // Multi-selection state for timeline editor
+  const [selectedClipIds, setSelectedClipIds] = useState<Set<string>>(new Set());
+  const lastClickedClipRef = useRef<string | null>(null);
+
+  const toggleClipSelection = (clipId: string) => {
+    setSelectedClipIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clipId)) next.delete(clipId);
+      else next.add(clipId);
+      return next;
+    });
+  };
+
+  const selectAllClips = () => {
+    setSelectedClipIds(new Set(items.map((i) => i.id)));
+  };
+
+  const deselectAllClips = () => {
+    setSelectedClipIds(new Set());
+  };
+
+  // Reset multi-selection when items change
+  useEffect(() => {
+    setSelectedClipIds((prev) => {
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (items.some((i) => i.id === id)) next.add(id);
+      }
+      return next;
+    });
+  }, [items]);
+
   // Selected clip item (for version picker)
   const selectedItem = useMemo(
     () => (selectedClipId ? items.find((i) => i.id === selectedClipId) : undefined),
@@ -384,6 +416,25 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
   const handleClipClick = (e: React.MouseEvent, item: StoryItemDetail) => {
     e.stopPropagation();
     if (draggingItem || trimmingItem) return;
+
+    // Multi-select with modifiers
+    if (e.shiftKey && lastClickedClipRef.current) {
+      // Shift-click: select range from last clicked to current
+      const itemIds = sortedItems.map((i) => i.id);
+      const lastIdx = itemIds.indexOf(lastClickedClipRef.current);
+      const currIdx = itemIds.indexOf(item.id);
+      const start = Math.min(lastIdx, currIdx);
+      const end = Math.max(lastIdx, currIdx);
+      setSelectedClipIds(new Set(itemIds.slice(start, end + 1)));
+    } else if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd-click: toggle selection
+      toggleClipSelection(item.id);
+    } else {
+      // Regular click: select single
+      setSelectedClipIds(new Set([item.id]));
+    }
+
+    lastClickedClipRef.current = item.id;
     setSelectedClipId(item.id);
   };
 
@@ -589,6 +640,26 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
       },
     );
   }, [selectedClipId, storyId, removeItem, toast, setSelectedClipId]);
+
+  // Delete selected clips (batch)
+  const handleDeleteSelected = useCallback(() => {
+    const idsToDelete = Array.from(selectedClipIds);
+    idsToDelete.forEach((id) => {
+      removeItem.mutate(
+        { storyId, itemId: id },
+        {
+          onError: (error) => {
+            toast({
+              title: 'Failed to delete clip',
+              description: error instanceof Error ? error.message : String(error),
+              variant: 'destructive',
+            });
+          },
+        },
+      );
+    });
+    setSelectedClipIds(new Set());
+  }, [selectedClipIds, storyId, removeItem, toast]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -813,8 +884,20 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
             </span>
           </div>
 
+          {/* Multi-selection toolbar - shows when clips selected */}
+          {selectedClipIds.size > 0 && (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">{selectedClipIds.size} selected</span>
+              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={selectAllClips}>All</Button>
+              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={deselectAllClips}>None</Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleDeleteSelected} title="Delete selected">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
           {/* Clip editing controls - center */}
-          {selectedClipId && (
+          {selectedClipId && !selectedClipIds.size && (
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
@@ -1003,7 +1086,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
               {/* Audio clips */}
               {items.map((item) => {
                 const isDragging = draggingItem === item.id;
-                const isSelected = selectedClipId === item.id;
+                const isSelected = selectedClipIds.has(item.id);
                 const isTrimming = trimmingItem === item.id;
 
                 // Use temporary trim values during trimming for visual feedback
@@ -1038,6 +1121,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                         'w-full h-full rounded cursor-move overflow-hidden',
                         'bg-accent/80 hover:bg-accent border border-accent-foreground/20',
                         'flex flex-col justify-center',
+                        isSelected && 'ring-2 ring-blue-500 ring-offset-1 ring-offset-background',
                         isDragging && 'opacity-80 shadow-lg z-20',
                         !isDragging && 'transition-all duration-100',
                       )}
