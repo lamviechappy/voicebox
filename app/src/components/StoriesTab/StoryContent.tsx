@@ -126,41 +126,43 @@ export function StoryContent() {
     setSelectedItems(new Set());
   };
 
-  // Select items to the left of current playback position
+  // Select items to left of first selected item
   const selectItemsLeft = () => {
-    if (!isPlaying || playbackStoryId !== story?.id || !sortedItems.length) return;
-    const currentIndex = sortedItems.findIndex((item) => {
-      const itemStart = item.start_time_ms;
-      const itemEnd = item.start_time_ms + item.duration * 1000;
-      return currentTimeMs >= itemStart && currentTimeMs < itemEnd;
-    });
-    if (currentIndex < 0) {
-      // No item currently playing, select all items whose end time is before current time
-      const leftItems = sortedItems.filter((item) => item.start_time_ms + item.duration * 1000 <= currentTimeMs);
-      setSelectedItems(new Set(leftItems.map((i) => i.id)));
+    if (!sortedItems.length) return;
+    const selectedIds = Array.from(selectedItems);
+    if (selectedIds.length === 0) {
+      // No selection, select half on the left
+      const midpoint = Math.floor(sortedItems.length / 2);
+      setSelectedItems(new Set(sortedItems.slice(0, midpoint).map((i) => i.id)));
     } else {
-      // Select all items up to and including current playing item
-      const leftItems = sortedItems.slice(0, currentIndex + 1);
-      setSelectedItems(new Set(leftItems.map((i) => i.id)));
+      // Find first selected item position
+      const firstSelectedIndex = sortedItems.findIndex((item) => selectedIds.includes(item.id));
+      if (firstSelectedIndex > 0) {
+        setSelectedItems(new Set(sortedItems.slice(0, firstSelectedIndex).map((i) => i.id)));
+      }
     }
   };
 
-  // Select items to the right of current playback position
+  // Select items to right of last selected item
   const selectItemsRight = () => {
-    if (!isPlaying || playbackStoryId !== story?.id || !sortedItems.length) return;
-    const currentIndex = sortedItems.findIndex((item) => {
-      const itemStart = item.start_time_ms;
-      const itemEnd = item.start_time_ms + item.duration * 1000;
-      return currentTimeMs >= itemStart && currentTimeMs < itemEnd;
-    });
-    if (currentIndex < 0) {
-      // No item currently playing, select all items whose start time is after current time
-      const rightItems = sortedItems.filter((item) => item.start_time_ms >= currentTimeMs);
-      setSelectedItems(new Set(rightItems.map((i) => i.id)));
+    if (!sortedItems.length) return;
+    const selectedIds = Array.from(selectedItems);
+    if (selectedIds.length === 0) {
+      // No selection, select half on the right
+      const midpoint = Math.floor(sortedItems.length / 2);
+      setSelectedItems(new Set(sortedItems.slice(midpoint).map((i) => i.id)));
     } else {
-      // Select all items after current playing item
-      const rightItems = sortedItems.slice(currentIndex + 1);
-      setSelectedItems(new Set(rightItems.map((i) => i.id)));
+      // Find last selected item position
+      let lastSelectedIndex = -1;
+      for (let i = sortedItems.length - 1; i >= 0; i--) {
+        if (selectedIds.includes(sortedItems[i].id)) {
+          lastSelectedIndex = i;
+          break;
+        }
+      }
+      if (lastSelectedIndex < sortedItems.length - 1) {
+        setSelectedItems(new Set(sortedItems.slice(lastSelectedIndex + 1).map((i) => i.id)));
+      }
     }
   };
 
@@ -478,30 +480,26 @@ export function StoryContent() {
           <div className="flex items-center gap-2 py-2 px-2 bg-muted/50 rounded-lg">
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllItems}>All</Button>
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={deselectAllItems}>None</Button>
-            {/* Timeline selection buttons */}
-            {isPlaying && playbackStoryId === story?.id && (
-              <>
-                <div className="w-px h-4 bg-border" />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={selectItemsLeft}
-                  title="Select items before current playback position"
-                >
-                  <ChevronLeft className="h-3 w-3 mr-1" />Left
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={selectItemsRight}
-                  title="Select items after current playback position"
-                >
-                  Right<ChevronRight className="h-3 w-3 ml-1" />
-                </Button>
-              </>
-            )}
+            {/* Timeline selection buttons - always visible when items selected */}
+            <div className="w-px h-4 bg-border" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={selectItemsLeft}
+              title="Select items to the left"
+            >
+              <ChevronLeft className="h-3 w-3 mr-1" />Left
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={selectItemsRight}
+              title="Select items to the right"
+            >
+              Right<ChevronRight className="h-3 w-3 ml-1" />
+            </Button>
             <span className="text-xs text-muted-foreground">{selectedItems.size} selected</span>
             <div className="flex-1" />
             {/* Move buttons */}
