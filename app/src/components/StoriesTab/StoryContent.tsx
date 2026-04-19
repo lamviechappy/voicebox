@@ -573,12 +573,19 @@ export function StoryContent() {
                       }
                     }}
                   >
-                    {/* Checkbox */}
+                    {
+                      /* Checkbox */
+                    }
                     <div
-                      className="mt-2 w-4 h-4 rounded border flex items-center justify-center shrink-0 cursor-pointer"
+                      className={`
+                        mt-2 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 cursor-pointer select-none
+                        ${selectedItems.has(item.id)
+                          ? 'bg-blue-500 border-blue-500'
+                          : 'border-muted-foreground/50 hover:border-blue-400 bg-muted/20'}
+                      `}
                       onClick={() => toggleItemSelection(item.id)}
                     >
-                      {selectedItems.has(item.id) && <Check className="h-3 w-3" />}
+                      {selectedItems.has(item.id) && <Check className="h-3 w-3 text-white" />}
                     </div>
                     <div className="flex-1">
                       <SortableStoryChatItem
