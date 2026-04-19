@@ -231,6 +231,57 @@ async def delete_story(
     return True
 
 
+async def duplicate_story(
+    story_id: str,
+    db: Session,
+) -> Optional[StoryResponse]:
+    """
+    Duplicate a story with all its items.
+
+    Args:
+        story_id: Story ID to duplicate
+        db: Database session
+
+    Returns:
+        New story response or None if not found
+    """
+    # Get the original story
+    original = db.query(DBStory).filter_by(id=story_id).first()
+    if not original:
+        return None
+
+    # Create new story with modified name
+    new_story = DBStory(
+        id=str(uuid.uuid4()),
+        name=f"{original.name} (Copy)",
+        description=original.description,
+    )
+    db.add(new_story)
+    db.flush()
+
+    # Get all items from original story
+    original_items = db.query(DBStoryItem).filter_by(story_id=story_id).all()
+
+    # Copy each item
+    for item in original_items:
+        new_item = DBStoryItem(
+            id=str(uuid.uuid4()),
+            story_id=new_story.id,
+            generation_id=item.generation_id,
+            version_id=item.version_id,
+            start_time_ms=item.start_time_ms,
+            track=item.track,
+            trim_start_ms=item.trim_start_ms,
+            trim_end_ms=item.trim_end_ms,
+        )
+        db.add(new_item)
+
+    db.commit()
+
+    # Return the new story with items
+    return await get_story(new_story.id, db)
+
+
 async def add_item_to_story(
     story_id: str,
     data: StoryItemCreate,

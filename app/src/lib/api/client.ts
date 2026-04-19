@@ -569,6 +569,12 @@ class ApiClient {
     });
   }
 
+  async duplicateStory(storyId: string): Promise<StoryResponse> {
+    return this.request<StoryResponse>(`/stories/${storyId}/duplicate`, {
+      method: 'POST',
+    });
+  }
+
   async addStoryItem(storyId: string, data: StoryItemCreate): Promise<StoryItemDetail> {
     return this.request<StoryItemDetail>(`/stories/${storyId}/items`, {
       method: 'POST',

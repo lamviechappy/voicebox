@@ -13,9 +13,11 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+'use client';
+
 import { Link } from '@tanstack/react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Download, Plus } from 'lucide-react';
+import { Check, Download, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Loader from 'react-loaders';
 import { Button } from '@/components/ui/button';
@@ -50,6 +52,9 @@ export function StoryContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const { data: historyData } = useHistory();
+
+  // Batch selection state for generated audio items
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
   // Filter generations not in story and matching search
   const availableGenerations = useMemo(() => {
@@ -102,6 +107,29 @@ export function StoryContent() {
     if (!story?.items) return [];
     return [...story.items].sort((a, b) => a.start_time_ms - b.start_time_ms);
   }, [story?.items]);
+
+  // Batch selection handlers
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  const selectAllItems = () => {
+    setSelectedItems(new Set(sortedItems.map((i) => i.id)));
+  };
+
+  const deselectAllItems = () => {
+    setSelectedItems(new Set());
+  };
+
+  // Reset selection when story changes
+  useEffect(() => {
+    setSelectedItems(new Set());
+  }, [selectedStoryId]);
 
   // Find the currently playing item based on timecode
   const currentlyPlayingItemId = useMemo(() => {
@@ -348,6 +376,29 @@ export function StoryContent() {
             </Button>
           )}
         </div>
+        {/* Batch selection toolbar */}
+        {selectedItems.size > 0 && (
+          <div className="flex items-center gap-2 py-2 px-2 bg-muted/50 rounded-lg">
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllItems}>All</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={deselectAllItems}>None</Button>
+            <span className="text-xs text-muted-foreground">{selectedItems.size} selected</span>
+            <div className="flex-1" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs text-destructive"
+              onClick={() => {
+                const itemsToDelete = sortedItems.filter((i) => selectedItems.has(i.id));
+                itemsToDelete.forEach((item) => {
+                  removeItem.mutate({ storyId: story.id, itemId: item.id });
+                });
+                setSelectedItems(new Set());
+              }}
+            >
+              <Trash2 className="mr-1 h-3 w-3" />Delete
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -375,6 +426,7 @@ export function StoryContent() {
                 {sortedItems.map((item, index) => (
                   <div
                     key={item.id}
+                    className="flex items-start gap-2"
                     ref={(el) => {
                       if (el) {
                         itemRefsMap.current.set(item.generation_id, el);
@@ -383,14 +435,23 @@ export function StoryContent() {
                       }
                     }}
                   >
-                    <SortableStoryChatItem
-                      item={item}
-                      storyId={story.id}
-                      index={index}
-                      onRemove={() => handleRemoveItem(item.id)}
-                      currentTimeMs={currentTimeMs}
-                      isPlaying={isPlaying && playbackStoryId === story.id}
-                    />
+                    {/* Checkbox */}
+                    <div
+                      className="mt-2 w-4 h-4 rounded border flex items-center justify-center shrink-0 cursor-pointer"
+                      onClick={() => toggleItemSelection(item.id)}
+                    >
+                      {selectedItems.has(item.id) && <Check className="h-3 w-3" />}
+                    </div>
+                    <div className="flex-1">
+                      <SortableStoryChatItem
+                        item={item}
+                        storyId={story.id}
+                        index={index}
+                        onRemove={() => handleRemoveItem(item.id)}
+                        currentTimeMs={currentTimeMs}
+                        isPlaying={isPlaying && playbackStoryId === story.id}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

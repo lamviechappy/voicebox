@@ -1,4 +1,8 @@
-import { BookOpen, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+'use client';
+
+'use client';
+
+import { BookOpen, Check, Copy, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   AlertDialog,
@@ -32,6 +36,7 @@ import { useToast } from '@/components/ui/use-toast';
 import {
   useCreateStory,
   useDeleteStory,
+  useDuplicateStory,
   useStories,
   useStory,
   useUpdateStory,
@@ -49,6 +54,7 @@ export function StoryList() {
   const createStory = useCreateStory();
   const updateStory = useUpdateStory();
   const deleteStory = useDeleteStory();
+  const duplicateStory = useDuplicateStory();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -60,6 +66,8 @@ export function StoryList() {
   const [deletingStoryId, setDeletingStoryId] = useState<string | null>(null);
   const [newStoryName, setNewStoryName] = useState('');
   const [newStoryDescription, setNewStoryDescription] = useState('');
+  // Batch selection state
+  const [selectedStories, setSelectedStories] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   // Auto-select the first story when the list loads with no selection
@@ -176,6 +184,79 @@ export function StoryList() {
     });
   };
 
+  const handleBatchDeleteConfirm = () => {
+    const idsToDelete = Array.from(selectedStories);
+    let deletedCount = 0;
+    let lastError: Error | null = null;
+
+    idsToDelete.forEach((id) => {
+      deleteStory.mutate(id, {
+        onSuccess: () => {
+          deletedCount++;
+          if (deletedCount === idsToDelete.length) {
+            setSelectedStories(new Set());
+            setDeleteDialogOpen(false);
+            setDeletingStoryId(null);
+            toast({ title: `Deleted ${deletedCount} story(s)` });
+          }
+        },
+        onError: (error) => {
+          lastError = error;
+          deletedCount++;
+          if (deletedCount === idsToDelete.length) {
+            setSelectedStories(new Set());
+            setDeleteDialogOpen(false);
+            setDeletingStoryId(null);
+            toast({
+              title: 'Some deletions failed',
+              description: lastError?.message,
+              variant: 'destructive',
+            });
+          }
+        },
+      });
+    });
+  };
+
+  // Toggle story selection for batch operations
+  const toggleStorySelection = (storyId: string) => {
+    setSelectedStories((prev) => {
+      const next = new Set(prev);
+      if (next.has(storyId)) next.delete(storyId);
+      else next.add(storyId);
+      return next;
+    });
+  };
+
+  const selectAllStories = () => {
+    setSelectedStories(new Set(storyList.map((s) => s.id)));
+  };
+
+  const deselectAllStories = () => {
+    setSelectedStories(new Set());
+  };
+
+  const handleBatchDelete = () => {
+    setDeletingStoryId(null); // Using batch mode
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDuplicate = (storyId: string) => {
+    duplicateStory.mutate(storyId, {
+      onSuccess: (newStory) => {
+        setSelectedStoryId(newStory.id);
+        toast({ title: `Duplicated story as "${newStory.name}"` });
+      },
+      onError: (error) => {
+        toast({
+          title: 'Failed to duplicate story',
+          description: error.message,
+          variant: 'destructive',
+        });
+      },
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -201,6 +282,18 @@ export function StoryList() {
             New Story
           </Button>
         </div>
+        {/* Batch actions toolbar */}
+        {selectedStories.size > 0 && (
+          <div className="flex items-center gap-2 mb-2 px-1 py-2 bg-muted/50 rounded-lg">
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllStories}>All</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={deselectAllStories}>None</Button>
+            <span className="text-xs text-muted-foreground">{selectedStories.size} selected</span>
+            <div className="flex-1" />
+            <Button variant="outline" size="sm" className="h-7 text-xs text-destructive" onClick={handleBatchDelete}>
+              <Trash2 className="mr-1 h-3 w-3" />Delete
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Scrollable Story List */}
@@ -227,7 +320,14 @@ export function StoryList() {
                 )}
                 aria-label={`Story ${story.name}, ${story.item_count} ${story.item_count === 1 ? 'item' : 'items'}, ${formatDate(story.updated_at)}`}
                 aria-pressed={selectedStoryId === story.id}
-                onClick={() => setSelectedStoryId(story.id)}
+                onClick={(e) => {
+                  // Toggle selection if clicking checkbox area, otherwise select story
+                  if ((e.target as HTMLElement).closest('.story-checkbox')) {
+                    toggleStorySelection(story.id);
+                  } else {
+                    setSelectedStoryId(story.id);
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.target !== e.currentTarget) return;
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -236,6 +336,16 @@ export function StoryList() {
                   }
                 }}
               >
+                {/* Checkbox */}
+                <div
+                  className="story-checkbox w-4 h-4 rounded border flex items-center justify-center shrink-0 mr-3 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleStorySelection(story.id);
+                  }}
+                >
+                  {selectedStories.has(story.id) && <Check className="h-3 w-3" />}
+                </div>
                 <div className="flex items-start justify-between gap-2 w-full min-w-0">
                   <div className="flex-1 min-w-0 text-left overflow-hidden">
                     <h3 className="text-sm font-medium truncate">{story.name}</h3>
@@ -263,6 +373,10 @@ export function StoryList() {
                       <DropdownMenuItem onClick={() => handleEditClick(story)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDuplicate(story.id)}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Duplicate
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => handleDeleteClick(story.id)}
@@ -376,15 +490,16 @@ export function StoryList() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the story and all its items. This action cannot be
-              undone.
+              {deletingStoryId || selectedStories.size === 1
+                ? 'This will permanently delete the story and all its items. This action cannot be undone.'
+                : `This will permanently delete ${selectedStories.size} stories and all their items. This action cannot be undone.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction asChild>
               <Button
-                onClick={handleDeleteConfirm}
+                onClick={selectedStories.size > 0 ? handleBatchDeleteConfirm : handleDeleteConfirm}
                 disabled={deleteStory.isPending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
