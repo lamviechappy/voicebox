@@ -17,7 +17,7 @@ import {
 
 import { Link } from '@tanstack/react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Download, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Download, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Loader from 'react-loaders';
 import { Button } from '@/components/ui/button';
@@ -124,6 +124,44 @@ export function StoryContent() {
 
   const deselectAllItems = () => {
     setSelectedItems(new Set());
+  };
+
+  // Select items to the left of current playback position
+  const selectItemsLeft = () => {
+    if (!isPlaying || playbackStoryId !== story?.id || !sortedItems.length) return;
+    const currentIndex = sortedItems.findIndex((item) => {
+      const itemStart = item.start_time_ms;
+      const itemEnd = item.start_time_ms + item.duration * 1000;
+      return currentTimeMs >= itemStart && currentTimeMs < itemEnd;
+    });
+    if (currentIndex < 0) {
+      // No item currently playing, select all items whose end time is before current time
+      const leftItems = sortedItems.filter((item) => item.start_time_ms + item.duration * 1000 <= currentTimeMs);
+      setSelectedItems(new Set(leftItems.map((i) => i.id)));
+    } else {
+      // Select all items up to and including current playing item
+      const leftItems = sortedItems.slice(0, currentIndex + 1);
+      setSelectedItems(new Set(leftItems.map((i) => i.id)));
+    }
+  };
+
+  // Select items to the right of current playback position
+  const selectItemsRight = () => {
+    if (!isPlaying || playbackStoryId !== story?.id || !sortedItems.length) return;
+    const currentIndex = sortedItems.findIndex((item) => {
+      const itemStart = item.start_time_ms;
+      const itemEnd = item.start_time_ms + item.duration * 1000;
+      return currentTimeMs >= itemStart && currentTimeMs < itemEnd;
+    });
+    if (currentIndex < 0) {
+      // No item currently playing, select all items whose start time is after current time
+      const rightItems = sortedItems.filter((item) => item.start_time_ms >= currentTimeMs);
+      setSelectedItems(new Set(rightItems.map((i) => i.id)));
+    } else {
+      // Select all items after current playing item
+      const rightItems = sortedItems.slice(currentIndex + 1);
+      setSelectedItems(new Set(rightItems.map((i) => i.id)));
+    }
   };
 
   // Reset selection when story changes
@@ -260,6 +298,65 @@ export function StoryContent() {
     );
   };
 
+  // Move selected items to a new position
+  const moveSelectedItems = (direction: 'up' | 'down') => {
+    if (!story || selectedItems.size === 0) return;
+
+    // Get selected items in sorted order
+    const selectedIds = Array.from(selectedItems);
+    const selectedItemsSorted = sortedItems
+      .filter((item) => selectedIds.includes(item.id))
+      .sort((a, b) => a.start_time_ms - b.start_time_ms);
+
+    // Find the first and last selected indices in the sorted list
+    const firstSelectedIndex = sortedItems.findIndex((item) => item.id === selectedItemsSorted[0].id);
+    const lastSelectedIndex = sortedItems.findIndex((item) => item.id === selectedItemsSorted[selectedItemsSorted.length - 1].id);
+
+    let newOrder = [...sortedItems];
+
+    if (direction === 'up') {
+      // Move selected items up by one position (if not already at top)
+      if (firstSelectedIndex > 0) {
+        // Get the item before the first selected
+        const itemBefore = sortedItems[firstSelectedIndex - 1];
+        // Remove selected items
+        newOrder = sortedItems.filter((item) => !selectedIds.includes(item.id));
+        // Insert selected items before the item that was before them
+        const insertIndex = newOrder.findIndex((item) => item.id === itemBefore.id);
+        newOrder.splice(insertIndex, 0, ...selectedItemsSorted);
+      }
+    } else {
+      // Move selected items down by one position (if not already at bottom)
+      if (lastSelectedIndex < sortedItems.length - 1) {
+        // Get the item after the last selected
+        const itemAfter = sortedItems[lastSelectedIndex + 1];
+        // Remove selected items
+        newOrder = sortedItems.filter((item) => !selectedIds.includes(item.id));
+        // Insert selected items after the item that was after them
+        const insertIndex = newOrder.findIndex((item) => item.id === itemAfter.id);
+        newOrder.splice(insertIndex + 1, 0, ...selectedItemsSorted);
+      }
+    }
+
+    const generationIds = newOrder.map((item) => item.generation_id);
+
+    reorderItems.mutate(
+      {
+        storyId: story.id,
+        data: { generation_ids: generationIds },
+      },
+      {
+        onError: (error) => {
+          toast({
+            title: 'Failed to move items',
+            description: error.message,
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
+
   if (!selectedStoryId) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -381,8 +478,51 @@ export function StoryContent() {
           <div className="flex items-center gap-2 py-2 px-2 bg-muted/50 rounded-lg">
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllItems}>All</Button>
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={deselectAllItems}>None</Button>
+            {/* Timeline selection buttons */}
+            {isPlaying && playbackStoryId === story?.id && (
+              <>
+                <div className="w-px h-4 bg-border" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={selectItemsLeft}
+                  title="Select items before current playback position"
+                >
+                  <ChevronLeft className="h-3 w-3 mr-1" />Left
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={selectItemsRight}
+                  title="Select items after current playback position"
+                >
+                  Right<ChevronRight className="h-3 w-3 ml-1" />
+                </Button>
+              </>
+            )}
             <span className="text-xs text-muted-foreground">{selectedItems.size} selected</span>
             <div className="flex-1" />
+            {/* Move buttons */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => moveSelectedItems('up')}
+              title="Move selected items up"
+            >
+              <ArrowUp className="h-3 w-3 mr-1" />Up
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => moveSelectedItems('down')}
+              title="Move selected items down"
+            >
+              Down<ArrowDown className="h-3 w-3 ml-1" />
+            </Button>
             <Button
               variant="outline"
               size="sm"
