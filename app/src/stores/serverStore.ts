@@ -2,6 +2,41 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { queryClient } from '@/lib/queryClient';
 
+// ============ Mood Store (Magic Wand settings) ============
+interface MoodStore {
+  apiServerUrl: string;
+  setApiServerUrl: (url: string) => void;
+  apiKey: string;
+  setApiKey: (key: string) => void;
+  selectedLlmModel: string;
+  setSelectedLlmModel: (model: string) => void;
+  prompts: { name: string; prompt: string }[];
+  addPrompt: (name: string, prompt: string) => void;
+  removePrompt: (name: string) => void;
+}
+
+export const useMoodStore = create<MoodStore>()(
+  persist(
+    (set, get) => ({
+      apiServerUrl: '',
+      setApiServerUrl: (url) => set({ apiServerUrl: url }),
+      apiKey: '',
+      setApiKey: (key) => set({ apiKey: key }),
+      selectedLlmModel: '',
+      setSelectedLlmModel: (model) => set({ selectedLlmModel: model }),
+      prompts: [
+        { name: 'English Podcast A2', prompt: 'You are an expert voice director. Analyze the following script. This script is for a Youtube podcast video for learning English. The audience is at A1, A2 English level. Insert inline emotional tags like (happy), (sad), (serious), or (laugh) based on the context of the script.' },
+        { name: ' Storytelling', prompt: 'You are a storytelling expert. Add emotion tags to make the narrative engaging and immersive. Use appropriate (emotion) tags for each character.' },
+        { name: 'Marketing', prompt: 'You are a marketing copywriter. Add excitement and persuasion emotion tags to make the content compelling.' },
+      ],
+      addPrompt: (name, prompt) => set((s) => ({ prompts: [...s.prompts, { name, prompt }] })),
+      removePrompt: (name) => set((s) => ({ prompts: s.prompts.filter((p) => p.name !== name) })),
+    }),
+    { name: 'voicebox-mood-settings' }
+  )
+);
+
+// ============ Server Store ============
 interface ServerStore {
   serverUrl: string;
   setServerUrl: (url: string) => void;

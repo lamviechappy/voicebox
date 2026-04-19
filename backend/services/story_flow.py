@@ -22,7 +22,9 @@ from .generation import run_generation
 logger = logging.getLogger(__name__)
 
 # Pattern to match [SpeakerName] text turns
-_TURN_PATTERN = re.compile(r"\[([^\]]+)\]\s*(.+?)(?=\[[^\]]+\]|$)", re.DOTALL)
+# Supports both [SpeakerName] and <[SpeakerName]> formats
+_TURN_PATTERN_1 = re.compile(r"\[([^\]]+)\]\s*(.+?)(?=\[[^\]]+\]|$)", re.DOTALL)
+_TURN_PATTERN_2 = re.compile(r"<\[([^\]]+)\]>\s*(.+?)(?=<\[|\[|$)", re.DOTALL)
 
 
 def parse_story_script(
@@ -47,13 +49,15 @@ def parse_story_script(
     # Create a lookup dict for speakers by name (case-insensitive)
     speaker_by_name = {s.name.lower(): s for s in speakers}
 
-    # Find all matches
-    matches = list(_TURN_PATTERN.finditer(script))
+    # Find all matches - try both patterns
+    matches = list(_TURN_PATTERN_1.finditer(script))
+    if not matches:
+        matches = list(_TURN_PATTERN_2.finditer(script))
 
     if not matches:
         raise ValueError(
-            "No valid turns found in script. Use [SpeakerName] format, e.g.:\n"
-            "[Mark] Hello!\n[Emily] Hi Mark!"
+            "No valid turns found in script. Use [SpeakerName] or <[SpeakerName]> format, e.g.:\n"
+            "[Mark] Hello!\n<[Emily]> Hi Mark!"
         )
 
     for turn_index, match in enumerate(matches):
@@ -157,6 +161,10 @@ async def _enqueue_and_wait_turn(
     Returns:
         Generation result for the turn
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[STORY_FLOW] Starting turn {turn.turn_index}: {turn.speaker_name}")
+
     from ..backends import engine_needs_trim
     from ..database import VoiceProfile as DBVoiceProfile
 
@@ -191,24 +199,33 @@ async def _enqueue_and_wait_turn(
         )
 
         # Enqueue the generation coroutine (same pattern as generations.py)
-        task_queue.enqueue_generation(
-            run_generation(
-                generation_id=generation_id,
-                profile_id=profile_id or "",
-                text=turn.text,
-                language=config.language,
-                engine=engine,
-                model_size=model_size or "1.7B",
-                seed=None,
-                normalize=False,
-                effects_chain=(
-                    [e.model_dump() for e in config.effects_chain]
-                    if config.effects_chain else None
-                ),
-                instruct=None,
-                mode="generate",
+        logger.info(f"[STORY_FLOW] Enqueueing generation {generation_id}")
+        try:
+            task_queue.enqueue_generation(
+                generation_id,
+                run_generation(
+                    generation_id=generation_id,
+                    profile_id=profile_id or "",
+                    text=turn.text,
+                    language=config.language,
+                    engine=engine,
+                    model_size=model_size or "1.7B",
+                    seed=None,
+                    normalize=False,
+                    effects_chain=(
+                        [e.model_dump() for e in config.effects_chain]
+                        if config.effects_chain else None
+                    ),
+                    instruct=None,
+                    mode="generate",
+                )
             )
-        )
+            logger.info(f"[STORY_FLOW] Enqueue call completed for {generation_id}")
+        except Exception as e:
+            logger.error(f"[STORY_FLOW] Enqueue failed: {e}")
+            raise
+
+        logger.info(f"[STORY_FLOW] Waiting for {generation_id}...")
 
         # Wait for completion by polling the database
         timeout_seconds = 600  # 10 minutes max per turn

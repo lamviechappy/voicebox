@@ -10,8 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { usePlayerStore } from '@/stores/playerStore';
+import { useMoodStore } from '@/stores/serverStore';
 import { useProfiles } from '@/lib/hooks/useProfiles';
 import { useStoryFlow } from '@/lib/hooks/useStoryFlow';
 import { useStories, useAddStoryItem } from '@/lib/hooks/useStories';
@@ -32,8 +36,8 @@ const ENGINE_OPTIONS = [
   { value: 'fish_speech', label: 'Fish Audio S2 Pro' },
 ];
 
-// Emotion presets for Magic Wand
-const EMOTION_PRESETS = [
+// Fish Audio emotion presets (uses ()
+const FISH_EMOTION_PRESETS = [
   { category: 'Positive', emotions: ['(happy)', '(excited)', '(delighted)', '(satisfied)', '(proud)', '(grateful)', '(confident)', '(relaxed)', '(hopeful)'] },
   { category: 'Negative', emotions: ['(sad)', '(angry)', '(frustrated)', '(upset)', '(worried)', '(scared)', '(nervous)', '(disappointed)', '(bored)'] },
   { category: 'Complex', emotions: ['(calm)', '(curious)', '(surprised)', '(confused)', '(uncertain)', '(sarcastic)', '(determined)', '(nostalgic)'] },
@@ -41,6 +45,14 @@ const EMOTION_PRESETS = [
   { category: 'Effects', emotions: ['[laughing]', '[chuckling]', '[sighing]', '[panting]', '[groaning]'] },
   { category: 'Pauses', emotions: ['(break)', '(long-break)'] },
 ];
+
+// Chatterbox emotion presets (uses different format)
+const CHATTERBOX_TAGS = [
+  { category: 'Effects', emotions: ['laugh', 'chuckle', 'gasp', 'cough', 'sigh', 'groan', 'sniff', 'shush', 'clear_throat'] },
+];
+
+// Backward compatibility
+const EMOTION_PRESETS = FISH_EMOTION_PRESETS;
 
 // Fish Audio emotion guide for AI (used when enhancing)
 const EMOTION_GUIDE = `Fish Audio Emotion Tags:
@@ -100,10 +112,19 @@ function StoryFlowMain() {
   // Track number of turns selected when generation started
   const [generationStartedWithCount, setGenerationStartedWithCount] = useState<number>(0);
 
-  // Magic Wand emotion state
-  const [emotionPopoverOpen, setEmotionPopoverOpen] = useState(false);
+  // Mood state (Manual + Magic Wand)
+  const [moodPopoverOpen, setMoodPopoverOpen] = useState(false);
+  const [moodTab, setMoodTab] = useState<'manual' | 'magic'>('manual');
+  const [moodTtsEngine, setMoodTtsEngine] = useState<string>('fish_speech');
   const [selectedEmotion, setSelectedEmotion] = useState<string>('');
   const [isApplyingEmotion, setIsApplyingEmotion] = useState(false);
+
+  // Magic Wand API settings (persisted)
+  const { apiServerUrl, setApiServerUrl, apiKey, setApiKey, selectedLlmModel, setSelectedLlmModel, prompts } = useMoodStore();
+  const [llmModels, setLlmModels] = useState<string[]>([]);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
+  const [selectedPrompt, setSelectedPrompt] = useState<string>('');
+  const [customPrompt, setCustomPrompt] = useState<string>('');
 
   const { data: profiles } = useProfiles();
   const { data: stories } = useStories();
@@ -181,47 +202,69 @@ function StoryFlowMain() {
     }
   }, [script, profiles, profileSettings, initProfileSettings, parseScript]);
 
-  // Apply emotion tag to script
-  const handleApplyEmotion = useCallback(() => {
-    if (!selectedEmotion || !script.trim()) return;
+  // Apply emotion - Manual or Magic Wand (AI)
+  const handleApplyEmotion = useCallback(async () => {
+    if (!script.trim()) return;
     setIsApplyingEmotion(true);
 
     try {
-      // Apply emotion to each line in the script
-      const lines = script.split('\n');
-      const enhancedLines = lines.map((line) => {
-        const trimmed = line.trim();
-        if (!trimmed) return trimmed;
-        // If line starts with [SpeakerName], add emotion after the bracket
-        if (trimmed.match(/^\[.+\]/)) {
-          // Check if already has an emotion
-          if (trimmed.match(/\([a-zA-Z]+\)/)) {
-            // Replace existing emotion
-            return trimmed.replace(/(\([a-zA-Z]+\))/, selectedEmotion);
+      if (moodTab === 'manual') {
+        // Manual mode: apply selected emotion tag
+        if (!selectedEmotion) return;
+        const lines = script.split('\n');
+        const enhancedLines = lines.map((line) => {
+          const trimmed = line.trim();
+          if (!trimmed) return trimmed;
+          if (trimmed.match(/^<?\[.+\]/)) {
+            if (trimmed.match(/\([a-zA-Z]+\)/)) {
+              return trimmed.replace(/(\([a-zA-Z]+\))/, selectedEmotion);
+            }
+            return trimmed.replace(/^(<?\[[^\]]+\])/, `$1 ${selectedEmotion}`);
           }
-          // Add emotion after speaker name
-          return trimmed.replace(/^(\[[^\]]+\])/, `$1 ${selectedEmotion}`);
+          return `${selectedEmotion} ${trimmed}`;
+        });
+        setScript(enhancedLines.join('\n'));
+        toast({ title: 'Emotion applied', description: `Added ${selectedEmotion}` });
+      } else {
+        // Magic Wand mode: use LLM to enhance
+        if (!apiServerUrl || !selectedLlmModel) return;
+        const guide = moodTtsEngine === 'fish_speech'
+          ? EMOTION_GUIDE
+          : 'Use Chatterbox effect tags: laugh, chuckle, gasp, cough, sigh, groan, sniff, shush, clear_throat';
+        const selectedPromptTemplate = prompts.find(p => p.name === selectedPrompt);
+        const prompt = (selectedPrompt === 'Custom' ? customPrompt : selectedPromptTemplate?.prompt) || `You are a voice director. Add emotion tags to make the script more engaging. ${guide}`;
+        const fullPrompt = `${prompt}\n\nScript:\n${script}\n\nReturn the enhanced script with appropriate emotion tags inserted.`;
+        const res = await fetch(`${apiServerUrl}/v1/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            model: selectedLlmModel,
+            messages: [{ role: 'user', content: fullPrompt }],
+            temperature: 0.7,
+          }),
+        });
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        const data = await res.json();
+        const enhanced = data.choices?.[0]?.message?.content;
+        if (enhanced) {
+          setScript(enhanced);
+          toast({ title: 'Magic Wand applied', description: 'Script enhanced with AI emotions' });
         }
-        // Just prepend emotion if no speaker format
-        return `${selectedEmotion} ${trimmed}`;
-      });
-
-      setScript(enhancedLines.join('\n'));
-      setEmotionPopoverOpen(false);
-      toast({
-        title: 'Emotion applied',
-        description: `Added ${selectedEmotion} to script`,
-      });
+      }
+      setMoodPopoverOpen(false);
     } catch (err) {
       toast({
-        title: 'Failed to apply emotion',
+        title: 'Failed to apply mood',
         description: err instanceof Error ? err.message : String(err),
         variant: 'destructive',
       });
     } finally {
       setIsApplyingEmotion(false);
     }
-  }, [selectedEmotion, script, toast]);
+  }, [moodTab, selectedEmotion, script, apiServerUrl, apiKey, selectedLlmModel, selectedPrompt, customPrompt, prompts, moodTtsEngine, toast]);
 
   // Clear emotions from script (remove all emotion tags)
   const handleClearEmotions = useCallback(() => {
@@ -498,65 +541,122 @@ function StoryFlowMain() {
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-sm">Script</h2>
               <div className="flex gap-2">
-                {/* Magic Wand Emotion Button */}
-                <Popover open={emotionPopoverOpen} onOpenChange={setEmotionPopoverOpen}>
+                {/* Mood Button with Tabs */}
+                <Popover open={moodPopoverOpen} onOpenChange={setMoodPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       size="sm"
                       className="gap-1.5"
-                      title="Add emotion to script"
+                      title="Add mood to script"
                     >
                       <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                      Magic Wand
+                      Mood
                       <ChevronDown className="h-3 w-3 text-muted-foreground" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-80 p-3" align="end">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold">Emotion Presets</h3>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 text-xs"
-                          onClick={handleClearEmotions}
-                        >
-                          Clear All
-                        </Button>
+                  <PopoverContent className="w-[340px] p-3" align="end">
+                    <div className="space-y-2">
+                      {/* TTS Engine Selector */}
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs">TTS:</Label>
+                        <Select value={moodTtsEngine} onValueChange={setMoodTtsEngine}>
+                          <SelectTrigger className="h-6 text-xs flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="fish_speech">Fish Audio S2 Pro</SelectItem>
+                            <SelectItem value="chatterbox">Chatterbox</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      {EMOTION_PRESETS.map((preset) => (
-                        <div key={preset.category} className="space-y-1.5">
-                          <p className="text-xs font-medium text-muted-foreground">{preset.category}</p>
-                          <div className="flex flex-wrap gap-1">
-                            {preset.emotions.map((emotion) => (
+
+                      {/* Tabs */}
+                      <Tabs value={moodTab} onValueChange={(v) => setMoodTab(v as typeof moodTab)} className="w-full">
+                        <TabsList className="w-full">
+                          <TabsTrigger value="manual" className="flex-1 text-xs">Manual</TabsTrigger>
+                          <TabsTrigger value="magic" className="flex-1 text-xs">Magic Wand</TabsTrigger>
+                        </TabsList>
+
+                        {/* Manual Tab */}
+                        <TabsContent value="manual" className="space-y-2 mt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Emotions</span>
+                            <Button variant="ghost" size="sm" className="h-5 text-xs" onClick={handleClearEmotions}>Clear</Button>
+                          </div>
+                          <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto">
+                            {(moodTtsEngine === 'fish_speech' ? FISH_EMOTION_PRESETS : CHATTERBOX_TAGS).flatMap(p => p.emotions).map((emotion) => (
                               <button
                                 key={emotion}
                                 type="button"
-                                className={`
-                                  px-1.5 py-0.5 text-[10px] rounded border transition-colors
-                                  ${selectedEmotion === emotion
-                                    ? 'bg-amber-500/20 border-amber-500 text-amber-700 dark:text-amber-400'
-                                    : 'bg-muted/50 border-border hover:bg-muted'}
-                                `}
+                                className={`px-1.5 py-0.5 text-[10px] rounded border transition-colors ${selectedEmotion === emotion ? 'bg-amber-500/20 border-amber-500 text-amber-700' : 'bg-muted/50 border-border hover:bg-muted'}`}
                                 onClick={() => setSelectedEmotion(emotion)}
                               >
                                 {emotion}
                               </button>
                             ))}
                           </div>
-                        </div>
-                      ))}
-                      <div className="pt-2 border-t">
-                        <Button
-                          size="sm"
-                          className="w-full"
-                          onClick={handleApplyEmotion}
-                          disabled={!selectedEmotion || isApplyingEmotion}
-                        >
-                          {isApplyingEmotion ? 'Applying...' : `Apply ${selectedEmotion || 'Emotion'}`}
-                        </Button>
-                      </div>
+                          <Button size="sm" className="w-full" onClick={handleApplyEmotion} disabled={!selectedEmotion || isApplyingEmotion}>
+                            {isApplyingEmotion ? 'Applying...' : `Apply ${selectedEmotion || ''}`}
+                          </Button>
+                        </TabsContent>
+
+                        {/* Magic Wand Tab */}
+                        <TabsContent value="magic" className="space-y-2 mt-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-[10px]">API Server</Label>
+                              <Input placeholder="http://127.0.0.1:8081" value={apiServerUrl} onChange={(e) => setApiServerUrl(e.target.value)} className="h-6 text-xs" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px]">API Key</Label>
+                              <Input type="password" placeholder="sk-..." value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="h-6 text-xs" />
+                            </div>
+                          </div>
+                          <Button size="sm" variant="outline" className="w-full text-xs" onClick={async () => {
+                            if (!apiServerUrl) return;
+                            setIsFetchingModels(true);
+                            try {
+                              const res = await fetch(`${apiServerUrl}/v1/models`, { headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {} });
+                              const data = await res.json();
+                              const models = data.data?.map((m: { id: string }) => m.id) || [];
+                              setLlmModels(models);
+                              if (models.length > 0) setSelectedLlmModel(models[0]);
+                            } catch { /* ignore */ }
+                            setIsFetchingModels(false);
+                          }} disabled={!apiServerUrl || isFetchingModels}>
+                            {isFetchingModels ? 'Fetching...' : 'Fetch Models'}
+                          </Button>
+                          {llmModels.length > 0 && (
+                            <div className="space-y-1">
+                              <Label className="text-[10px]">LLM Model</Label>
+                              <Select value={selectedLlmModel} onValueChange={setSelectedLlmModel}>
+                                <SelectTrigger className="h-6 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {llmModels.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">System Prompt</Label>
+                            <Select value={selectedPrompt} onValueChange={setSelectedPrompt}>
+                              <SelectTrigger className="h-6 text-xs">
+                                <SelectValue placeholder="Select..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {prompts.map((p) => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Textarea placeholder="Or custom prompt..." value={selectedPrompt === 'Custom' ? customPrompt : ''} onChange={(e) => { setCustomPrompt(e.target.value); setSelectedPrompt('Custom'); }} className="min-h-[50px] text-xs resize-none" />
+                          </div>
+                          <Button size="sm" className="w-full" onClick={handleApplyEmotion} disabled={!apiServerUrl || !selectedLlmModel || isApplyingEmotion}>
+                            {isApplyingEmotion ? 'Enhancing...' : 'Apply Magic Wand'}
+                          </Button>
+                        </TabsContent>
+                      </Tabs>
                     </div>
                   </PopoverContent>
                 </Popover>
@@ -578,12 +678,12 @@ function StoryFlowMain() {
             <Textarea
               value={script}
               onChange={(e) => setScript(e.target.value)}
-              placeholder={`[ProfileName] Your dialogue...`}
+              placeholder={`<[Speaker]> Your dialogue...`}
               className="min-h-[100px] max-h-[200px] font-mono text-xs resize-none overflow-y-auto"
               disabled={appState === 'generating' || appState === 'done'}
             />
             <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">Use [ProfileName] format.</p>
+              <p className="text-xs text-muted-foreground">Use {"<[Speaker]>"} format.</p>
               {relevantProfiles.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {relevantProfiles.map((p) => (
