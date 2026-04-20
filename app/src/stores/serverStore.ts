@@ -12,12 +12,13 @@ interface MoodStore {
   setSelectedLlmModel: (model: string) => void;
   prompts: { name: string; prompt: string }[];
   addPrompt: (name: string, prompt: string) => void;
+  updatePrompt: (name: string, newName: string, newPrompt: string) => void;
   removePrompt: (name: string) => void;
 }
 
 export const useMoodStore = create<MoodStore>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       apiServerUrl: '',
       setApiServerUrl: (url) => set({ apiServerUrl: url }),
       apiKey: '',
@@ -25,11 +26,17 @@ export const useMoodStore = create<MoodStore>()(
       selectedLlmModel: '',
       setSelectedLlmModel: (model) => set({ selectedLlmModel: model }),
       prompts: [
-        { name: 'English Podcast A2', prompt: 'You are an expert voice director. Analyze the following script. This script is for a Youtube podcast video for learning English. The audience is at A1, A2 English level. Insert inline emotional tags like (happy), (sad), (serious), or (laugh) based on the context of the script.' },
+        { name: 'English Podcast A2', prompt: 'You are an expert voice director. Analyze the following script. This script is for a YouTube podcast video for learning English. The audience is at A1, A2 English level. Insert inline emotional tags like (happy), (sad), (serious), or (laugh) based on the context of the script.' },
         { name: ' Storytelling', prompt: 'You are a storytelling expert. Add emotion tags to make the narrative engaging and immersive. Use appropriate (emotion) tags for each character.' },
         { name: 'Marketing', prompt: 'You are a marketing copywriter. Add excitement and persuasion emotion tags to make the content compelling.' },
+        { name: 'Podcast (Chatterbox Turbo)', prompt: 'You are a professional podcast voice director. Enhance the following podcast script with Chatterbox Turbo emotion tags for a natural, engaging English podcast feel. Use these tags: laugh, chuckle, gasp, cough, sigh, groan, sniff, shush, clear_throat. Insert them naturally within dialogue to create pauses, reactions, and breathing moments — not just at line endings. Add variety: a real conversation has hesitations, interruptions, and reactions. Keep the speaker labels [Name] intact.' },
       ],
       addPrompt: (name, prompt) => set((s) => ({ prompts: [...s.prompts, { name, prompt }] })),
+      updatePrompt: (name, newName, newPrompt) => set((s) => ({
+        prompts: s.prompts.map((p) =>
+          p.name === name ? { name: newName, prompt: newPrompt } : p
+        ),
+      })),
       removePrompt: (name) => set((s) => ({ prompts: s.prompts.filter((p) => p.name !== name) })),
     }),
     { name: 'voicebox-mood-settings' }

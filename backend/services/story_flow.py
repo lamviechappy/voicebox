@@ -21,10 +21,9 @@ from .generation import run_generation
 
 logger = logging.getLogger(__name__)
 
-# Pattern to match [SpeakerName] text turns
-# Supports both [SpeakerName] and <[SpeakerName]> formats
-_TURN_PATTERN_1 = re.compile(r"\[([^\]]+)\]\s*(.+?)(?=\[[^\]]+\]|$)", re.DOTALL)
-_TURN_PATTERN_2 = re.compile(r"<\[([^\]]+)\]>\s*(.+?)(?=<\[|\[|$)", re.DOTALL)
+# Pattern to match <[SpeakerName]> text turns
+# Only uses <[SpeakerName]> to avoid confusion with emotion tags like (laugh)
+_TURN_PATTERN = re.compile(r"<\[([^\]]+)\]>\s*(.+?)(?=<\[|$)", re.DOTALL)
 
 
 def parse_story_script(
@@ -49,15 +48,13 @@ def parse_story_script(
     # Create a lookup dict for speakers by name (case-insensitive)
     speaker_by_name = {s.name.lower(): s for s in speakers}
 
-    # Find all matches - try both patterns
-    matches = list(_TURN_PATTERN_1.finditer(script))
-    if not matches:
-        matches = list(_TURN_PATTERN_2.finditer(script))
+    # Find all matches - only <[SpeakerName]> format
+    matches = list(_TURN_PATTERN.finditer(script))
 
     if not matches:
         raise ValueError(
-            "No valid turns found in script. Use [SpeakerName] or <[SpeakerName]> format, e.g.:\n"
-            "[Mark] Hello!\n<[Emily]> Hi Mark!"
+            "No valid turns found in script. Use <[SpeakerName]> format, e.g.:\n"
+            "<[Mark]> Hello!\n<[Emily]> Hi Mark!"
         )
 
     for turn_index, match in enumerate(matches):

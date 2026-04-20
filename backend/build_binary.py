@@ -358,6 +358,17 @@ def build_server(cuda=False):
                 "mlx",
                 "--collect-all",
                 "mlx_audio",
+                # omnivoice package (PyTorch-based TTS engine)
+                "--hidden-import",
+                "omnivoice",
+                "--hidden-import",
+                "omnivoice.models",
+                "--hidden-import",
+                "omnivoice.models.omnivoice",
+                "--hidden-import",
+                "omnivoice.utils",
+                "--hidden-import",
+                "omnivoice.utils.lang_map",
             ]
         )
     elif not cuda:

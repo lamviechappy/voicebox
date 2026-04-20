@@ -17,7 +17,6 @@ export const $GenerationRequest = {
     },
     language: {
       type: 'string',
-      pattern: '^(en|zh)$',
     },
     seed: {
       type: 'any-of',

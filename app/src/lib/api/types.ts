@@ -70,7 +70,8 @@ export interface GenerationRequest {
     | 'chatterbox_turbo'
     | 'tada'
     | 'kokoro'
-    | 'fish_speech';
+    | 'fish_speech'
+    | 'omnivoice';
   instruct?: string;
   max_chunk_chars?: number;
   crossfade_ms?: number;

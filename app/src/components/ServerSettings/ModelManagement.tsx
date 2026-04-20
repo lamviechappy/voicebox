@@ -70,6 +70,8 @@ const MODEL_DESCRIPTIONS: Record<string, string> = {
     'Kokoro 82M by hexgrad. Tiny 82M-parameter TTS that runs at CPU realtime. Supports 8 languages with pre-built voice styles. Apache 2.0 licensed.',
   'fish-speech-s2-pro':
     'Fish Audio S2 Pro by Blaizzy/mlx-audio. Apple Silicon MLX-accelerated multilingual TTS with zero-shot voice cloning. Supports 10+ languages at 44.1kHz.',
+  omnivoice:
+    'OmniVoice by k2-fsa. Apple Silicon MLX-accelerated multilingual TTS with zero-shot voice cloning. Supports 10+ languages at 24kHz.',
   'qwen-custom-voice-1.7B':
     'Qwen3-TTS CustomVoice 1.7B by Alibaba. 9 premium preset voices with instruct-based style control for tone, emotion, and prosody. Supports 10 languages.',
   'qwen-custom-voice-0.6B':
@@ -407,7 +409,8 @@ export function ModelManagement() {
         m.model_name.startsWith('chatterbox') ||
         m.model_name.startsWith('tada') ||
         m.model_name.startsWith('kokoro') ||
-        m.model_name.startsWith('fish-speech'),
+        m.model_name.startsWith('fish-speech') ||
+        m.model_name === 'omnivoice',
     ) ?? [];
   const whisperModels = modelStatus?.models.filter((m) => m.model_name.startsWith('whisper')) ?? [];
 

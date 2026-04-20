@@ -74,11 +74,11 @@ class GenerationRequest(BaseModel):
 
     profile_id: str
     text: str = Field(..., min_length=1, max_length=50000)
-    language: str = Field(default="en", pattern="^(zh|en|ja|ko|de|fr|ru|pt|es|it|he|ar|da|el|fi|hi|ms|nl|no|pl|sv|sw|tr)$")
+    language: str = Field(default="en", description="ISO 639-1 language code")
     seed: Optional[int] = Field(None, ge=0)
     model_size: Optional[str] = Field(default="1.7B", pattern="^(1\\.7B|0\\.6B|1B|3B)$")
     instruct: Optional[str] = Field(None, max_length=500)
-    engine: Optional[str] = Field(default="qwen", pattern="^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|fish_speech)$")
+    engine: Optional[str] = Field(default="qwen", pattern="^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|fish_speech|omnivoice)$")
     max_chunk_chars: int = Field(
         default=800, ge=100, le=5000, description="Max characters per chunk for long text splitting"
     )
@@ -527,7 +527,7 @@ class AvailableEffectsResponse(BaseModel):
 LANGUAGE_PATTERN = "^(zh|en|ja|ko|de|fr|ru|pt|es|it|he|ar|da|el|fi|hi|ms|nl|no|pl|sv|sw|tr)$"
 
 # Engine pattern - extended to include all TTS engines
-ENGINE_PATTERN = "^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|fish_speech)$"
+ENGINE_PATTERN = "^(qwen|qwen_custom_voice|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|fish_speech|omnivoice)$"
 
 # Model size pattern
 MODEL_SIZE_PATTERN = "^(1\\.7B|0\\.6B|1B|3B)$"

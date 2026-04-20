@@ -28,6 +28,7 @@ const generationSchema = z.object({
       'tada',
       'kokoro',
       'fish_speech',
+      'omnivoice',
     ])
     .optional(),
 });
@@ -102,7 +103,9 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                     ? `qwen-custom-voice-${data.modelSize}`
                     : engine === 'fish_speech'
                       ? 'fish-speech-s2-pro'
-                      : `qwen-tts-${data.modelSize}`;
+                      : engine === 'omnivoice'
+                        ? 'omnivoice'
+                        : `qwen-tts-${data.modelSize}`;
       const displayName =
         engine === 'luxtts'
           ? 'LuxTTS'
@@ -122,7 +125,9 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                       : 'Qwen CustomVoice 0.6B'
                     : engine === 'fish_speech'
                       ? 'Fish Audio S2 Pro'
-                      : data.modelSize === '1.7B'
+                      : engine === 'omnivoice'
+                        ? 'OmniVoice'
+                        : data.modelSize === '1.7B'
                       ? 'Qwen TTS 1.7B'
                       : 'Qwen TTS 0.6B';
 

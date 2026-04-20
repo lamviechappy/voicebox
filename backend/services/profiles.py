@@ -24,7 +24,7 @@ from ..utils.images import process_avatar, validate_image
 
 logger = logging.getLogger(__name__)
 
-CLONING_ENGINES = {"qwen", "luxtts", "chatterbox", "chatterbox_turbo", "tada", "fish_speech"}
+CLONING_ENGINES = {"qwen", "luxtts", "chatterbox", "chatterbox_turbo", "tada", "fish_speech", "omnivoice"}
 
 
 def _profile_to_response(

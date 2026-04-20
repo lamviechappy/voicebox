@@ -170,6 +170,7 @@ TTS_ENGINES = {
     "tada": "TADA",
     "kokoro": "Kokoro",
     "fish_speech": "Fish Audio S2 Pro",
+    "omnivoice": "OmniVoice",
 }
 
 
@@ -322,6 +323,25 @@ def _get_non_qwen_tts_configs() -> list[ModelConfig]:
             hf_repo_id="mlx-community/fish-audio-s2-pro",
             size_mb=3500,
             languages=["en", "zh", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
+        ),
+        ModelConfig(
+            model_name="omnivoice",
+            display_name="OmniVoice",
+            engine="omnivoice",
+            hf_repo_id="k2-fsa/OmniVoice",
+            size_mb=3500,
+            languages=[
+                # Major world languages (ISO 639-1 codes)
+                "en", "zh", "ja", "ko", "de", "fr", "es", "pt", "ru", "it",
+                "ar", "hi", "th", "vi", "id", "tr", "pl", "nl", "el", "he",
+                "uk", "cs", "sv", "fi", "da", "no", "hu", "ro", "sk", "bg",
+                "hr", "sr", "sl", "et", "lv", "lt", "ms", "bn", "ta", "te",
+                "mr", "ml", "ur", "fa", "ne", "si", "km", "lo", "sw",
+                # Additional languages
+                "af", "am", "az", "be", "ca", "cy", "gu", "ka", "kk", "kn",
+                "mk", "mn", "my", "pa", "sd", "so", "sq", "tg",
+                "tk", "tl", "ug", "uz", "xh", "yo", "zu",
+            ],
         ),
     ]
 
@@ -588,6 +608,10 @@ def get_tts_backend_for_engine(engine: str) -> TTSBackend:
             from .fish_speech_backend import FishSpeechTTSBackend
 
             backend = FishSpeechTTSBackend()
+        elif engine == "omnivoice":
+            from .omnivoice_backend import OmniVoiceBackend
+
+            backend = OmniVoiceBackend()
         else:
             raise ValueError(f"Unknown TTS engine: {engine}. Supported: {list(TTS_ENGINES.keys())}")
 

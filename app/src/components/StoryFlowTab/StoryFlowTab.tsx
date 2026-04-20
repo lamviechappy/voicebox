@@ -34,6 +34,7 @@ const ENGINE_OPTIONS = [
   { value: 'tada', label: 'TADA' },
   { value: 'kokoro', label: 'Kokoro' },
   { value: 'fish_speech', label: 'Fish Audio S2 Pro' },
+  { value: 'omnivoice', label: 'OmniVoice' },
 ];
 
 // Fish Audio emotion presets (uses ()
@@ -51,9 +52,6 @@ const CHATTERBOX_TAGS = [
   { category: 'Effects', emotions: ['laugh', 'chuckle', 'gasp', 'cough', 'sigh', 'groan', 'sniff', 'shush', 'clear_throat'] },
 ];
 
-// Backward compatibility
-const EMOTION_PRESETS = FISH_EMOTION_PRESETS;
-
 // Fish Audio emotion guide for AI (used when enhancing)
 const EMOTION_GUIDE = `Fish Audio Emotion Tags:
 - Basic emotions: (happy), (sad), (angry), (excited), (calm), (nervous), (confident), (surprised), (satisfied), (delighted), (scared), (worried), (upset), (frustrated), (depressed), (embarrassed), (disgusted), (moved), (proud), (relaxed), (grateful), (curious), (sarcastic)
@@ -64,6 +62,106 @@ const EMOTION_GUIDE = `Fish Audio Emotion Tags:
 
 Use format: [SpeakerName] (emotion) Text
 Example: [Emily] (happy) Hello there! [laughing]`;
+
+// Prompt card component for Magic Wand editing
+function PromptCard({
+  name,
+  prompt,
+  isSelected,
+  onSelect,
+  onUpdate,
+  onDelete,
+}: {
+  name: string;
+  prompt: string;
+  isSelected: boolean;
+  onSelect: () => void;
+  onUpdate: (name: string, prompt: string) => void;
+  onDelete: () => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(name);
+  const [editPrompt, setEditPrompt] = useState(prompt);
+
+  useEffect(() => {
+    setEditPrompt(prompt);
+    setEditName(name);
+  }, [prompt, name]);
+
+  const handleSave = () => {
+    if (editName.trim() && editPrompt.trim()) {
+      onUpdate(editName.trim(), editPrompt.trim());
+      setIsEditing(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditName(name);
+    setEditPrompt(prompt);
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="p-2 border rounded bg-background text-xs space-y-1">
+        <Input
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          placeholder="Prompt name"
+          className="h-6"
+        />
+        <Textarea
+          value={editPrompt}
+          onChange={(e) => setEditPrompt(e.target.value)}
+          placeholder="System prompt..."
+          className="min-h-[60px] resize-none"
+        />
+        <div className="flex gap-1">
+          <Button size="sm" variant="outline" className="h-5 text-[10px]" onClick={handleSave}>
+            Save
+          </Button>
+          <Button size="sm" variant="ghost" className="h-5 text-[10px]" onClick={handleCancel}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`p-1.5 border rounded text-xs cursor-pointer transition-colors ${
+        isSelected
+          ? 'border-amber-500 bg-amber-500/10'
+          : 'border-border hover:bg-muted/50'
+      }`}
+      onClick={onSelect}
+    >
+      <div className="flex items-start justify-between gap-1">
+        <span className={isSelected ? 'text-amber-600 font-medium' : ''}>{name}</span>
+        <div className="flex gap-0.5" onClick={(e) => e.stopPropagation()}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-4 px-1 text-muted-foreground hover:text-foreground"
+            onClick={() => setIsEditing(true)}
+          >
+            ✎
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-4 px-1 text-muted-foreground hover:text-red-500"
+            onClick={onDelete}
+          >
+            ✕
+          </Button>
+        </div>
+      </div>
+      <p className="text-muted-foreground line-clamp-2 text-[10px] mt-0.5">{prompt}</p>
+    </div>
+  );
+}
 
 function formatDuration(seconds: number | null | undefined): string {
   if (seconds == null) return '—';
@@ -120,7 +218,7 @@ function StoryFlowMain() {
   const [isApplyingEmotion, setIsApplyingEmotion] = useState(false);
 
   // Magic Wand API settings (persisted)
-  const { apiServerUrl, setApiServerUrl, apiKey, setApiKey, selectedLlmModel, setSelectedLlmModel, prompts } = useMoodStore();
+  const { apiServerUrl, setApiServerUrl, apiKey, setApiKey, selectedLlmModel, setSelectedLlmModel, prompts, addPrompt, updatePrompt, removePrompt } = useMoodStore();
   const [llmModels, setLlmModels] = useState<string[]>([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<string>('');
@@ -230,9 +328,9 @@ function StoryFlowMain() {
         if (!apiServerUrl || !selectedLlmModel) return;
         const guide = moodTtsEngine === 'fish_speech'
           ? EMOTION_GUIDE
-          : 'Use Chatterbox effect tags: laugh, chuckle, gasp, cough, sigh, groan, sniff, shush, clear_throat';
+          : 'Use Chatterbox Turbo emotion tags: laugh, chuckle, gasp, cough, sigh, groan, sniff, shush, clear_throat. Insert them naturally — real conversations have hesitations, reactions, and interruptions.';
         const selectedPromptTemplate = prompts.find(p => p.name === selectedPrompt);
-        const prompt = (selectedPrompt === 'Custom' ? customPrompt : selectedPromptTemplate?.prompt) || `You are a voice director. Add emotion tags to make the script more engaging. ${guide}`;
+        const prompt = (selectedPrompt === '__custom__' ? customPrompt : selectedPromptTemplate?.prompt) || `You are a voice director. Add emotion tags to make the script more engaging. ${guide}`;
         const fullPrompt = `${prompt}\n\nScript:\n${script}\n\nReturn the enhanced script with appropriate emotion tags inserted.`;
         const res = await fetch(`${apiServerUrl}/v1/chat/completions`, {
           method: 'POST',
@@ -299,7 +397,7 @@ function StoryFlowMain() {
       // Filter script to only include selected turns
       const selectedTurns = parseResult!.turns.filter((_, i) => turnSelections.has(i));
       const filteredScript = selectedTurns
-        .map((t) => `[${t.speaker_name}] ${t.text}`)
+        .map((t) => `<[${t.speaker_name}]> ${t.text}`)
         .join('\n');
 
       const speakers: StoryFlowSpeakerConfig[] = profiles!.map((p) => ({
@@ -640,17 +738,46 @@ function StoryFlowMain() {
                               </Select>
                             </div>
                           )}
-                          <div className="space-y-1">
-                            <Label className="text-[10px]">System Prompt</Label>
-                            <Select value={selectedPrompt} onValueChange={setSelectedPrompt}>
-                              <SelectTrigger className="h-6 text-xs">
-                                <SelectValue placeholder="Select..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {prompts.map((p) => <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                            <Textarea placeholder="Or custom prompt..." value={selectedPrompt === 'Custom' ? customPrompt : ''} onChange={(e) => { setCustomPrompt(e.target.value); setSelectedPrompt('Custom'); }} className="min-h-[50px] text-xs resize-none" />
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-[10px]">System Prompts</Label>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-4 px-1 text-[10px] text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                  const name = prompt('New prompt name:');
+                                  if (name && !prompts.some((p) => p.name === name)) {
+                                    addPrompt(name, 'You are a voice director. Add emotion tags to enhance the script.');
+                                    setSelectedPrompt(name);
+                                  }
+                                }}
+                              >
+                                + Add
+                              </Button>
+                            </div>
+                            <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                              {prompts.map((p) => (
+                                <PromptCard
+                                  key={p.name}
+                                  name={p.name}
+                                  prompt={p.prompt}
+                                  isSelected={selectedPrompt === p.name}
+                                  onSelect={() => { setSelectedPrompt(p.name); setCustomPrompt(''); }}
+                                  onUpdate={(n, pr) => updatePrompt(p.name, n, pr)}
+                                  onDelete={() => { removePrompt(p.name); if (selectedPrompt === p.name) setSelectedPrompt(''); }}
+                                />
+                              ))}
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-muted-foreground">Custom prompt</Label>
+                              <Textarea
+                                placeholder="Write a custom prompt..."
+                                value={selectedPrompt === '__custom__' ? customPrompt : ''}
+                                onChange={(e) => { setCustomPrompt(e.target.value); setSelectedPrompt('__custom__'); }}
+                                className="min-h-[60px] text-xs resize-none"
+                              />
+                            </div>
                           </div>
                           <Button size="sm" className="w-full" onClick={handleApplyEmotion} disabled={!apiServerUrl || !selectedLlmModel || isApplyingEmotion}>
                             {isApplyingEmotion ? 'Enhancing...' : 'Apply Magic Wand'}
