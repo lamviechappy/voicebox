@@ -13,9 +13,11 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+'use client';
+
 import { Link } from '@tanstack/react-router';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Download, Music, Plus, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Download, Music, Plus, Trash2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Loader from 'react-loaders';
@@ -58,6 +60,9 @@ export function StoryContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const { data: historyData } = useHistory();
+
+  // Batch selection state for generated audio items
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
   // Filter generations not in story and matching search
   const availableGenerations = useMemo(() => {
@@ -114,6 +119,69 @@ export function StoryContent() {
     if (!story?.items) return [];
     return [...story.items].sort((a, b) => a.start_time_ms - b.start_time_ms);
   }, [story?.items]);
+
+  // Batch selection handlers
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  };
+
+  const selectAllItems = () => {
+    setSelectedItems(new Set(sortedItems.map((i) => i.id)));
+  };
+
+  const deselectAllItems = () => {
+    setSelectedItems(new Set());
+  };
+
+  // Select items to left of first selected item
+  const selectItemsLeft = () => {
+    if (!sortedItems.length) return;
+    const selectedIds = Array.from(selectedItems);
+    if (selectedIds.length === 0) {
+      // No selection, select half on the left
+      const midpoint = Math.floor(sortedItems.length / 2);
+      setSelectedItems(new Set(sortedItems.slice(0, midpoint).map((i) => i.id)));
+    } else {
+      // Find first selected item position
+      const firstSelectedIndex = sortedItems.findIndex((item) => selectedIds.includes(item.id));
+      if (firstSelectedIndex > 0) {
+        setSelectedItems(new Set(sortedItems.slice(0, firstSelectedIndex).map((i) => i.id)));
+      }
+    }
+  };
+
+  // Select items to right of last selected item
+  const selectItemsRight = () => {
+    if (!sortedItems.length) return;
+    const selectedIds = Array.from(selectedItems);
+    if (selectedIds.length === 0) {
+      // No selection, select half on the right
+      const midpoint = Math.floor(sortedItems.length / 2);
+      setSelectedItems(new Set(sortedItems.slice(midpoint).map((i) => i.id)));
+    } else {
+      // Find last selected item position
+      let lastSelectedIndex = -1;
+      for (let i = sortedItems.length - 1; i >= 0; i--) {
+        if (selectedIds.includes(sortedItems[i].id)) {
+          lastSelectedIndex = i;
+          break;
+        }
+      }
+      if (lastSelectedIndex < sortedItems.length - 1) {
+        setSelectedItems(new Set(sortedItems.slice(lastSelectedIndex + 1).map((i) => i.id)));
+      }
+    }
+  };
+
+  // Reset selection when story changes
+  useEffect(() => {
+    setSelectedItems(new Set());
+  }, [selectedStoryId]);
 
   // Find the currently playing item based on timecode
   const currentlyPlayingItemId = useMemo(() => {
@@ -276,6 +344,65 @@ export function StoryContent() {
         onError: (error) => {
           toast({
             title: t('storyContent.toast.addFailed'),
+            description: error.message,
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  };
+
+  // Move selected items to a new position
+  const moveSelectedItems = (direction: 'up' | 'down') => {
+    if (!story || selectedItems.size === 0) return;
+
+    // Get selected items in sorted order
+    const selectedIds = Array.from(selectedItems);
+    const selectedItemsSorted = sortedItems
+      .filter((item) => selectedIds.includes(item.id))
+      .sort((a, b) => a.start_time_ms - b.start_time_ms);
+
+    // Find the first and last selected indices in the sorted list
+    const firstSelectedIndex = sortedItems.findIndex((item) => item.id === selectedItemsSorted[0].id);
+    const lastSelectedIndex = sortedItems.findIndex((item) => item.id === selectedItemsSorted[selectedItemsSorted.length - 1].id);
+
+    let newOrder = [...sortedItems];
+
+    if (direction === 'up') {
+      // Move selected items up by one position (if not already at top)
+      if (firstSelectedIndex > 0) {
+        // Get the item before the first selected
+        const itemBefore = sortedItems[firstSelectedIndex - 1];
+        // Remove selected items
+        newOrder = sortedItems.filter((item) => !selectedIds.includes(item.id));
+        // Insert selected items before the item that was before them
+        const insertIndex = newOrder.findIndex((item) => item.id === itemBefore.id);
+        newOrder.splice(insertIndex, 0, ...selectedItemsSorted);
+      }
+    } else {
+      // Move selected items down by one position (if not already at bottom)
+      if (lastSelectedIndex < sortedItems.length - 1) {
+        // Get the item after the last selected
+        const itemAfter = sortedItems[lastSelectedIndex + 1];
+        // Remove selected items
+        newOrder = sortedItems.filter((item) => !selectedIds.includes(item.id));
+        // Insert selected items after the item that was after them
+        const insertIndex = newOrder.findIndex((item) => item.id === itemAfter.id);
+        newOrder.splice(insertIndex + 1, 0, ...selectedItemsSorted);
+      }
+    }
+
+    const generationIds = newOrder.map((item) => item.generation_id);
+
+    reorderItems.mutate(
+      {
+        storyId: story.id,
+        data: { generation_ids: generationIds },
+      },
+      {
+        onError: (error) => {
+          toast({
+            title: 'Failed to move items',
             description: error.message,
             variant: 'destructive',
           });
@@ -457,6 +584,68 @@ export function StoryContent() {
             </Button>
           )}
         </div>
+        {/* Batch selection toolbar */}
+        {selectedItems.size > 0 && (
+          <div className="flex items-center gap-2 py-2 px-2 bg-muted/50 rounded-lg">
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAllItems}>All</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={deselectAllItems}>None</Button>
+            {/* Timeline selection buttons - always visible when items selected */}
+            <div className="w-px h-4 bg-border" />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={selectItemsLeft}
+              title="Select items to the left"
+            >
+              <ChevronLeft className="h-3 w-3 mr-1" />Left
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={selectItemsRight}
+              title="Select items to the right"
+            >
+              Right<ChevronRight className="h-3 w-3 ml-1" />
+            </Button>
+            <span className="text-xs text-muted-foreground">{selectedItems.size} selected</span>
+            <div className="flex-1" />
+            {/* Move buttons */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => moveSelectedItems('up')}
+              title="Move selected items up"
+            >
+              <ArrowUp className="h-3 w-3 mr-1" />Up
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => moveSelectedItems('down')}
+              title="Move selected items down"
+            >
+              Down<ArrowDown className="h-3 w-3 ml-1" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs text-destructive"
+              onClick={() => {
+                const itemsToDelete = sortedItems.filter((i) => selectedItems.has(i.id));
+                itemsToDelete.forEach((item) => {
+                  removeItem.mutate({ storyId: story.id, itemId: item.id });
+                });
+                setSelectedItems(new Set());
+              }}
+            >
+              <Trash2 className="mr-1 h-3 w-3" />Delete
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -484,6 +673,7 @@ export function StoryContent() {
                 {sortedItems.map((item, index) => (
                   <div
                     key={item.id}
+                    className="flex items-start gap-2"
                     ref={(el) => {
                       if (el) {
                         itemRefsMap.current.set(item.generation_id, el);
@@ -492,19 +682,33 @@ export function StoryContent() {
                       }
                     }}
                   >
-                    <SortableStoryChatItem
-                      item={item}
-                      storyId={story.id}
-                      index={index}
-                      onRemove={() => handleRemoveItem(item.id)}
-                      onRegenerate={
-                        item.engine === 'import'
-                          ? undefined
-                          : () => handleRegenerate(item.generation_id)
-                      }
-                      currentTimeMs={currentTimeMs}
-                      isPlaying={isPlaying && playbackStoryId === story.id}
-                    />
+                    {/* Checkbox for batch selection */}
+                    <div
+                      className={`
+                        mt-2 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 cursor-pointer select-none
+                        ${selectedItems.has(item.id)
+                          ? 'bg-blue-500 border-blue-500'
+                          : 'border-muted-foreground/50 hover:border-blue-400 bg-muted/20'}
+                      `}
+                      onClick={() => toggleItemSelection(item.id)}
+                    >
+                      {selectedItems.has(item.id) && <Check className="h-3 w-3 text-white" />}
+                    </div>
+                    <div className="flex-1">
+                      <SortableStoryChatItem
+                        item={item}
+                        storyId={story.id}
+                        index={index}
+                        onRemove={() => handleRemoveItem(item.id)}
+                        onRegenerate={
+                          item.engine === 'import'
+                            ? undefined
+                            : () => handleRegenerate(item.generation_id)
+                        }
+                        currentTimeMs={currentTimeMs}
+                        isPlaying={isPlaying && playbackStoryId === story.id}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

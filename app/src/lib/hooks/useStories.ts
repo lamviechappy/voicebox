@@ -63,6 +63,17 @@ export function useDeleteStory() {
   });
 }
 
+export function useDuplicateStory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (storyId: string) => apiClient.duplicateStory(storyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    },
+  });
+}
+
 export function useAddStoryItem() {
   const queryClient = useQueryClient();
 

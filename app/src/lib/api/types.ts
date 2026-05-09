@@ -78,7 +78,9 @@ export interface GenerationRequest {
     | 'chatterbox'
     | 'chatterbox_turbo'
     | 'tada'
-    | 'kokoro';
+    | 'kokoro'
+    | 'fish_speech'
+    | 'omnivoice';
   instruct?: string;
   /** When true and the profile has a personality prompt, input text is rewritten in-character before TTS. */
   personality?: boolean;
@@ -520,4 +522,58 @@ export interface MCPClientBindingUpsert {
 
 export interface MCPClientBindingListResponse {
   items: MCPClientBinding[];
+}
+
+/* ─── Story-Flow ─────────────────────────────────────────────────────────────── */
+
+export interface StoryFlowSpeakerConfig {
+  name: string;
+  language: LanguageCode;
+  engine: string;
+  model_size?: '1.7B' | '0.6B' | '1B' | '3B';
+  voice_profile_id?: string;
+  effects_chain?: EffectConfig[];
+}
+
+export interface StoryFlowParseRequest {
+  script: string;
+  speakers: StoryFlowSpeakerConfig[];
+}
+
+export interface StoryFlowTurn {
+  turn_index: number;
+  speaker_name: string;
+  speaker_config: StoryFlowSpeakerConfig;
+  text: string;
+}
+
+export interface StoryFlowParseResponse {
+  turns: StoryFlowTurn[];
+  total_turns: number;
+  total_characters: number;
+}
+
+export interface StoryFlowGenerateRequest {
+  script: string;
+  speakers: StoryFlowSpeakerConfig[];
+  generate_in_order?: boolean;
+}
+
+export interface StoryFlowGenerationResult {
+  turn_index: number;
+  speaker_name: string;
+  generation_id: string;
+  text: string;
+  audio_path?: string;
+  duration?: number;
+  status: 'completed' | 'failed';
+  error?: string;
+}
+
+export interface StoryFlowGenerateResponse {
+  results: StoryFlowGenerationResult[];
+  total_turns: number;
+  successful_turns: number;
+  failed_turns: number;
+  total_duration: number;
 }

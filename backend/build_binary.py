@@ -397,6 +397,17 @@ def build_server(cuda=False):
                 # which --hidden-import alone can't resolve.
                 "--collect-all",
                 "mlx_lm",
+                # omnivoice package (PyTorch-based TTS engine)
+                "--hidden-import",
+                "omnivoice",
+                "--hidden-import",
+                "omnivoice.models",
+                "--hidden-import",
+                "omnivoice.models.omnivoice",
+                "--hidden-import",
+                "omnivoice.utils",
+                "--hidden-import",
+                "omnivoice.utils.lang_map",
             ]
         )
     elif not cuda:

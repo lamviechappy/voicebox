@@ -25,7 +25,6 @@ export const $VoiceProfileCreate = {
     },
     language: {
       type: 'string',
-      pattern: '^(en|zh)$',
     },
   },
 } as const;

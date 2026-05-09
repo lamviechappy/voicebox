@@ -27,6 +27,8 @@ const generationSchema = z.object({
       'chatterbox_turbo',
       'tada',
       'kokoro',
+      'fish_speech',
+      'omnivoice',
     ])
     .optional(),
   personality: z.boolean().optional(),
@@ -102,7 +104,11 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                   ? 'kokoro'
                   : engine === 'qwen_custom_voice'
                     ? `qwen-custom-voice-${data.modelSize}`
-                    : `qwen-tts-${data.modelSize}`;
+                    : engine === 'fish_speech'
+                      ? 'fish-speech-s2-pro'
+                      : engine === 'omnivoice'
+                        ? 'omnivoice'
+                        : `qwen-tts-${data.modelSize}`;
       const displayName =
         engine === 'luxtts'
           ? 'LuxTTS'
@@ -120,7 +126,11 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                     ? data.modelSize === '1.7B'
                       ? 'Qwen CustomVoice 1.7B'
                       : 'Qwen CustomVoice 0.6B'
-                    : data.modelSize === '1.7B'
+                    : engine === 'fish_speech'
+                      ? 'Fish Audio S2 Pro'
+                      : engine === 'omnivoice'
+                        ? 'OmniVoice'
+                        : data.modelSize === '1.7B'
                       ? 'Qwen TTS 1.7B'
                       : 'Qwen TTS 0.6B';
 

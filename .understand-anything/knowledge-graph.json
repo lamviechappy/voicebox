@@ -1,0 +1,194 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "Voicebox",
+    "languages": ["TypeScript", "Python", "Rust"],
+    "frameworks": ["React", "FastAPI", "Tauri"],
+    "description": "The open-source voice synthesis studio.",
+    "analyzedAt": "2026-04-18T00:00:00Z",
+    "gitCommitHash": "476abe07fc2c1587f4b3e3916134018ebacd143d"
+  },
+  "nodes": [
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/backend/backends/base.py",
+      "name": "TTS Backend Base Utilities",
+      "description": "Shared utilities for TTS/STT backend implementations, including model caching, device detection, and audio processing.",
+      "tags": ["backend", "tts", "base", "utils"],
+      "summary": "Provides functions for cache checking, device detection (CUDA/ROCm/MPS/XPU), voice prompt combination, and model loading progress tracking across all TTS engines."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/backend/pyproject.toml",
+      "name": "Backend Python Project Manifest",
+      "description": "Python project configuration for Voicebox backend, including Ruff linter and pytest settings.",
+      "tags": ["python", "backend", "config", "lint"],
+      "summary": "Configures Ruff for linting/formatting and pytest for testing. Requires Python 3.12+."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/.agents/skills/add-tts-engine/SKILL.md",
+      "name": "add-tts-engine Skill Guide",
+      "description": "Comprehensive, multi-phase guide for integrating a new TTS engine into Voicebox.",
+      "tags": ["skill", "tts", "guide", "integration"],
+      "summary": "Step-by-step process covering dependency research, backend/frontend implementation, and PyInstaller bundling."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/.agents/skills/triage-prs/SKILL.md",
+      "name": "Triage PRs Skill Guide",
+      "description": "Skill to triage open PRs before a release: classifies them into must-merge, candidate, superseded, or deferred, and executes a tracked merge loop.",
+      "tags": ["skill", "pr", "triage", "release"],
+      "summary": "Workflow involves setting up a review worktree, gathering metadata, classifying into tiers, and executing the merge loop with a tracked triage doc."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/.agents/skills/draft-release-notes/SKILL.md",
+      "name": "Draft Release Notes Skill Guide",
+      "description": "Skill to generate a narrative release story for the [Unreleased] section of CHANGELOG.md based on recent commit history.",
+      "tags": ["skill", "release", "changelog", "documentation"],
+      "summary": "Follows a structured format focusing on theme groups and narrative over simple lists."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/app/package.json",
+      "name": "App Package Manifest",
+      "description": "Node.js package manifest for the Voicebox React frontend application.",
+      "tags": ["package", "frontend", "react", "config"],
+      "summary": "Lists key dependencies: React, Zustand, React Query, TanStack Router, Radix UI, Tailwind, and Tauri API plugins. Build system: Vite."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/backend/routes/generations.py",
+      "name": "TTS Generation Endpoints",
+      "description": "FastAPI endpoints for TTS speech generation, retry, regeneration, status streaming, and direct audio streaming.",
+      "tags": ["backend", "fastapi", "routes", "tts"],
+      "summary": "Handles POST /generate, retry, regenerate, SSE status streaming, and direct WAV audio streaming via /generate/stream."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/app/src/App.tsx",
+      "name": "Voicebox Main App Component",
+      "description": "Root React component for the Voicebox app, handling server lifecycle, auto-update, and initial UI routing.",
+      "tags": ["frontend", "react", "app", "ui"],
+      "summary": "Manages server auto-start, health-check polling, loading screen with cycling messages, and lifecycle callbacks for platform integration."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/tauri/src-tauri/src/main.rs",
+      "name": "Tauri Desktop App Main Entry Point",
+      "description": "Rust main entry point for the Tauri desktop application, managing server lifecycle, audio capture, and window events.",
+      "tags": ["tauri", "rust", "desktop", "app"],
+      "summary": "Handles server auto-start/stop, platform-specific process detection, audio capture/output, and window close events with keep-running functionality."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/CONTRIBUTING.md",
+      "name": "Voicebox Contributing Guide",
+      "description": "Comprehensive guide for contributing to Voicebox, covering development setup, code style, and the PR process.",
+      "tags": ["contributing", "development", "guide"],
+      "summary": "Details prerequisites, setup via `just setup`, development workflow, and API development guidelines for FastAPI and React."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/backend/app.py",
+      "name": "FastAPI Application Factory",
+      "description": "Core FastAPI application factory and lifecycle management for Voicebox, including CORS, GPU detection, and startup/shutdown events.",
+      "tags": ["backend", "fastapi", "app", "api"],
+      "summary": "Handles CORS configuration, GPU detection (CUDA/ROCm/MPS/MLX/XPU), model loading/unloading, and serves the built React frontend in production."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/CHANGELOG.md",
+      "name": "Voicebox Changelog",
+      "description": "Chronological record of all notable changes made to Voicebox, documenting new features, bug fixes, and platform improvements.",
+      "tags": ["changelog", "release", "history"],
+      "summary": "Details v0.4.0 as the biggest release, adding HumeAI TADA, Kokoro 82M, and Qwen CustomVoice engines, plus GPU compatibility diagnostics and Intel Arc support."
+    },
+    {
+      "id": "file:/Volumes/WD500/dev/voicebox/.agents/skills/release-bump/SKILL.md",
+      "name": "Release Bump Skill Guide",
+      "description": "Skill to finalize a release: stamps the [Unreleased] changelog, runs bumpversion, and creates a tagged release commit.",
+      "tags": ["skill", "release", "version", "changelog"],
+      "summary": "Workflow involves verifying clean state, determining bump level, stamping changelog, and running bumpversion."
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:frontend-ui",
+      "name": "Frontend UI",
+      "description": "React components and UI logic for the desktop and web apps.",
+      "nodeIds": [
+        "file:/Volumes/WD500/dev/voicebox/app/src/App.tsx",
+        "file:/Volumes/WD500/dev/voicebox/app/package.json"
+      ]
+    },
+    {
+      "id": "layer:backend-api",
+      "name": "Backend API",
+      "description": "FastAPI routes, services, and TTS engine implementations.",
+      "nodeIds": [
+        "file:/Volumes/WD500/dev/voicebox/backend/app.py",
+        "file:/Volumes/WD500/dev/voicebox/backend/routes/generations.py",
+        "file:/Volumes/WD500/dev/voicebox/backend/backends/base.py",
+        "file:/Volumes/WD500/dev/voicebox/backend/pyproject.toml"
+      ]
+    },
+    {
+      "id": "layer:desktop-platform",
+      "name": "Desktop Platform",
+      "description": "Tauri/Rust desktop app wrapper with system integration.",
+      "nodeIds": [
+        "file:/Volumes/WD500/dev/voicebox/tauri/src-tauri/src/main.rs"
+      ]
+    },
+    {
+      "id": "layer:contributing",
+      "name": "Contributing & Release",
+      "description": "Documentation and guides for development and release processes.",
+      "nodeIds": [
+        "file:/Volumes/WD500/dev/voicebox/CONTRIBUTING.md",
+        "file:/Volumes/WD500/dev/voicebox/CHANGELOG.md",
+        "file:/Volumes/WD500/dev/voicebox/.agents/skills/release-bump/SKILL.md",
+        "file:/Volumes/WD500/dev/voicebox/.agents/skills/draft-release-notes/SKILL.md",
+        "file:/Volumes/WD500/dev/voicebox/.agents/skills/triage-prs/SKILL.md"
+      ]
+    },
+    {
+      "id": "layer:developer-guides",
+      "name": "Developer Guides",
+      "description": "Step-by-step guides for adding features and contributing to the project.",
+      "nodeIds": [
+        "file:/Volumes/WD500/dev/voicebox/.agents/skills/add-tts-engine/SKILL.md"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "Start at the Voicebox App Entry",
+      "description": "This step explains how the frontend boots and mounts, handling server lifecycle and loading screens.",
+      "nodeIds": [
+        "file:/Volumes/WD500/dev/voicebox/app/src/App.tsx",
+        "file:/Volumes/WD500/dev/voicebox/app/package.json"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Explore the Backend TTS Architecture",
+      "description": "Delve into the FastAPI backend, TTS generation endpoints, and the shared base utilities for multi-engine support.",
+      "nodeIds": [
+        "file:/Volumes/WD500/dev/voicebox/backend/app.py",
+        "file:/Volumes/WD500/dev/voicebox/backend/routes/generations.py",
+        "file:/Volumes/WD500/dev/voicebox/backend/backends/base.py"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "Understand the Desktop Platform Integration",
+      "description": "See how the Rust-based Tauri app manages the Python server, audio capture, and system integration.",
+      "nodeIds": [
+        "file:/Volumes/WD500/dev/voicebox/tauri/src-tauri/src/main.rs"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "Contribute and Release",
+      "description": "Learn the development workflow, contribution guidelines, and how to manage releases using the project's custom skills.",
+      "nodeIds": [
+        "file:/Volumes/WD500/dev/voicebox/CONTRIBUTING.md",
+        "file:/Volumes/WD500/dev/voicebox/.agents/skills/release-bump/SKILL.md",
+        "file:/Volumes/WD500/dev/voicebox/.agents/skills/draft-release-notes/SKILL.md",
+        "file:/Volumes/WD500/dev/voicebox/.agents/skills/triage-prs/SKILL.md"
+      ]
+    }
+  ]
+}

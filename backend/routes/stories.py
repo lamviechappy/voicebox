@@ -69,6 +69,18 @@ async def delete_story(
     return {"message": "Story deleted successfully"}
 
 
+@router.post("/stories/{story_id}/duplicate", response_model=models.StoryResponse)
+async def duplicate_story(
+    story_id: str,
+    db: Session = Depends(get_db),
+):
+    """Duplicate a story."""
+    story = await stories.duplicate_story(story_id, db)
+    if not story:
+        raise HTTPException(status_code=404, detail="Story not found")
+    return story
+
+
 @router.post("/stories/{story_id}/items", response_model=models.StoryItemDetail)
 async def add_story_item(
     story_id: str,

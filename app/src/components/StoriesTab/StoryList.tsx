@@ -1,4 +1,6 @@
-import { BookOpen, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+'use client';
+
+import { BookOpen, Check, Copy, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -43,6 +45,7 @@ import { useToast } from '@/components/ui/use-toast';
 import {
   useCreateStory,
   useDeleteStory,
+  useDuplicateStory,
   useStories,
   useStory,
   useUpdateStory,
@@ -61,6 +64,7 @@ export function StoryList() {
   const createStory = useCreateStory();
   const updateStory = useUpdateStory();
   const deleteStory = useDeleteStory();
+  const duplicateStory = useDuplicateStory();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -72,7 +76,9 @@ export function StoryList() {
   const [deletingStoryId, setDeletingStoryId] = useState<string | null>(null);
   const [newStoryName, setNewStoryName] = useState('');
   const [newStoryDescription, setNewStoryDescription] = useState('');
-  const [search, setSearch] = useState('');
+const [search, setSearch] = useState('');
+  // Batch selection state
+  const [selectedStories, setSelectedStories] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   // Auto-select the first story when the list loads with no selection
@@ -189,7 +195,7 @@ export function StoryList() {
     });
   };
 
-  const storyList = stories || [];
+const storyList = stories || [];
   const hasTrackEditor = selectedStoryId && selectedStory && selectedStory.items.length > 0;
 
   const filtered = useMemo(() => {
@@ -201,6 +207,79 @@ export function StoryList() {
       return name.includes(q) || description.includes(q);
     });
   }, [search, storyList]);
+
+  const handleBatchDeleteConfirm = () => {
+    const idsToDelete = Array.from(selectedStories);
+    let deletedCount = 0;
+    let lastError: Error | null = null;
+
+    idsToDelete.forEach((id) => {
+      deleteStory.mutate(id, {
+        onSuccess: () => {
+          deletedCount++;
+          if (deletedCount === idsToDelete.length) {
+            setSelectedStories(new Set());
+            setDeleteDialogOpen(false);
+            setDeletingStoryId(null);
+            toast({ title: `Deleted ${deletedCount} story(s)` });
+          }
+        },
+        onError: (error) => {
+          lastError = error;
+          deletedCount++;
+          if (deletedCount === idsToDelete.length) {
+            setSelectedStories(new Set());
+            setDeleteDialogOpen(false);
+            setDeletingStoryId(null);
+            toast({
+              title: 'Some deletions failed',
+              description: lastError?.message,
+              variant: 'destructive',
+            });
+          }
+        },
+      });
+    });
+  };
+
+  // Toggle story selection for batch operations
+  const toggleStorySelection = (storyId: string) => {
+    setSelectedStories((prev) => {
+      const next = new Set(prev);
+      if (next.has(storyId)) next.delete(storyId);
+      else next.add(storyId);
+      return next;
+    });
+  };
+
+  const selectAllStories = () => {
+    setSelectedStories(new Set(storyList.map((s) => s.id)));
+  };
+
+  const deselectAllStories = () => {
+    setSelectedStories(new Set());
+  };
+
+  const handleBatchDelete = () => {
+    setDeletingStoryId(null); // Using batch mode
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDuplicate = (storyId: string) => {
+    duplicateStory.mutate(storyId, {
+      onSuccess: (newStory) => {
+        setSelectedStoryId(newStory.id);
+        toast({ title: `Duplicated story as "${newStory.name}"` });
+      },
+      onError: (error) => {
+        toast({
+          title: 'Failed to duplicate story',
+          description: error.message,
+          variant: 'destructive',
+        });
+      },
+    });
+  };
 
   if (isLoading) {
     return (
@@ -229,7 +308,7 @@ export function StoryList() {
         />
       </ListPaneHeader>
 
-      <ListPaneScroll
+<ListPaneScroll
         style={{ paddingBottom: hasTrackEditor ? `${trackEditorHeight + 140}px` : '170px' }}
       >
         {storyList.length === 0 ? (
@@ -243,8 +322,7 @@ export function StoryList() {
             <p>{t('stories.empty.noMatches', { query: search })}</p>
           </div>
         ) : (
-          <div className="px-4 pb-6 space-y-1">
-            {filtered.map((story) => {
+filtered.map((story) => {
               const isActive = selectedStoryId === story.id;
               return (
                 <div key={story.id} className="relative group">
@@ -267,7 +345,6 @@ export function StoryList() {
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[11px] text-muted-foreground font-medium">
                         {formatDate(story.updated_at)}
-                      </span>
                       <div className="flex-1" />
                     </div>
                     <div className="text-[13px] line-clamp-2 leading-snug mb-2">
@@ -304,6 +381,10 @@ export function StoryList() {
                       <DropdownMenuItem onClick={() => handleEditClick(story)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         {t('common.edit')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDuplicate(story.id)}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Duplicate
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => handleDeleteClick(story.id)}
@@ -413,14 +494,18 @@ export function StoryList() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('stories.deleteDialog.title')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('stories.deleteDialog.description')}</AlertDialogDescription>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingStoryId || selectedStories.size === 1
+                ? 'This will permanently delete the story and all its items. This action cannot be undone.'
+                : `This will permanently delete ${selectedStories.size} stories and all their items. This action cannot be undone.`}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction asChild>
               <Button
-                onClick={handleDeleteConfirm}
+                onClick={selectedStories.size > 0 ? handleBatchDeleteConfirm : handleDeleteConfirm}
                 disabled={deleteStory.isPending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >

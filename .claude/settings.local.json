@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//private/tmp/engine-research/fish-speech/**)",
+      "Bash(head -100 pyproject.toml)",
+      "Bash(cat setup.py)",
+      "Bash(pip show *)",
+      "Bash(python3 -c \"import sys; sys.path.insert\\(0, '.'\\); from fish_speech.models.dac.modded_dac import DAC; print\\('OK'\\)\")",
+      "Bash(python3 -c \"import descript_audio_codec; print\\('DAC OK'\\)\")",
+      "Bash(python3 -c \"from mlx_audio.tts import load; help\\(load\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Languages:', d.get\\('additional_special_tokens',[][:5]\\) if isinstance\\(d.get\\('additional_special_tokens'\\),list\\) else 'see below'\\); print\\('Tokenizer type:', d.get\\('tokenizer_type', d.get\\('model_type','unknown'\\)\\)\\)\")",
+      "Bash(python3 -m py_compile /Volumes/WD500/dev/voicebox/backend/backends/fish_speech_backend.py)",
+      "Bash(platform)",
+      "Bash(python3 -c \"import platform; print\\('Platform:', platform.platform\\(\\)\\); print\\('Machine:', platform.machine\\(\\)\\)\")",
+      "Bash(python3 -m pip show mlx-audio)",
+      "Bash(python3 -m pip show mlx)",
+      "Bash(python3 *)",
+      "Bash(/Volumes/WD500/dev/voicebox/backend/venv/bin/pip list *)",
+      "Bash(/Volumes/WD500/dev/voicebox/backend/venv/bin/python *)",
+      "Bash(curl -s http://127.0.0.1:17495/health)",
+      "Bash(curl -s http://127.0.0.1:17495/v1/models)",
+      "Bash(curl -s http://127.0.0.1:17495/v1/tts/models)",
+      "Bash(curl -s http://127.0.0.1:17495/openapi.json)",
+      "Bash(pkill -f \"uvicorn backend.main:app\")",
+      "Bash(pkill -f \"uvicorn\")",
+      "Bash(python -c \"from backend.models import StoryFlowSpeakerConfig, StoryFlowParseRequest, StoryFlowGenerateRequest, StoryFlowParseResponse, StoryFlowGenerateResponse, StoryFlowGenerationResult, StoryFlowTurn; print\\('Backend models OK'\\)\")",
+      "Bash(/usr/bin/python3 -c \"import sys; sys.path.insert\\(0, '.'\\); from backend.models import StoryFlowSpeakerConfig, StoryFlowParseRequest, StoryFlowGenerateRequest, StoryFlowParseResponse, StoryFlowGenerateResponse, StoryFlowGenerationResult, StoryFlowTurn; print\\('Backend models OK'\\)\")",
+      "Bash(./backend/venv/bin/python -c \"import sys; sys.path.insert\\(0, '.'\\); from backend.models import StoryFlowSpeakerConfig, StoryFlowParseRequest, StoryFlowGenerateRequest, StoryFlowParseResponse, StoryFlowGenerateResponse, StoryFlowGenerationResult, StoryFlowTurn; print\\('Backend models OK'\\)\")",
+      "Bash(./backend/venv/bin/python -c \"import sys; sys.path.insert\\(0, '.'\\); from backend.services.story_flow import parse_story_script, generate_story_flow; print\\('Backend services OK'\\)\")",
+      "Bash(./backend/venv/bin/python -c \"import sys; sys.path.insert\\(0, '.'\\); from backend.routes.story_flow import router; print\\('Backend routes OK'\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(./backend/venv/bin/python -c \"import sys; sys.path.insert\\(0, '.'\\); from backend.services.story_flow import parse_story_script, generate_story_flow; print\\('OK'\\)\")"
+    ]
+  }
+}

@@ -22,6 +22,10 @@ import type {
   ProfileSampleResponse,
   StoryCreate,
   StoryDetailResponse,
+  StoryFlowGenerateRequest,
+  StoryFlowGenerateResponse,
+  StoryFlowParseRequest,
+  StoryFlowParseResponse,
   StoryItemBatchUpdate,
   StoryItemCreate,
   StoryItemDetail,
@@ -722,6 +726,12 @@ class ApiClient {
     });
   }
 
+  async duplicateStory(storyId: string): Promise<StoryResponse> {
+    return this.request<StoryResponse>(`/stories/${storyId}/duplicate`, {
+      method: 'POST',
+    });
+  }
+
   async addStoryItem(storyId: string, data: StoryItemCreate): Promise<StoryItemDetail> {
     return this.request<StoryItemDetail>(`/stories/${storyId}/items`, {
       method: 'POST',
@@ -919,6 +929,21 @@ class ApiClient {
     }
 
     return response.blob();
+  }
+
+  // Story-Flow
+  async parseStoryFlow(data: StoryFlowParseRequest): Promise<StoryFlowParseResponse> {
+    return this.request<StoryFlowParseResponse>('/story-flow/parse', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async generateStoryFlow(data: StoryFlowGenerateRequest): Promise<StoryFlowGenerateResponse> {
+    return this.request<StoryFlowGenerateResponse>('/story-flow/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 }
 
