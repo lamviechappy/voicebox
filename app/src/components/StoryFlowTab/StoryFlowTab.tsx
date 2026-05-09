@@ -181,14 +181,14 @@ export function StoriesTab() {
 export { StoriesTab as StoryFlowTab };
 
 function StoryFlowMain() {
-  const [script, setScript] = useState(`[Mark] Hello Emily, how are you today?
-[Emily] I'm doing great, thanks for asking! How about you?
-[Mark] I'm wonderful! I was just thinking about our trip next week.
-[Emily] Oh yes! I'm so excited. Have you finished planning everything?
-[Mark] Almost! I booked the hotel yesterday.
-[Emily] That's wonderful news! What about the activities?
-[Mark] I was thinking we could go hiking on Tuesday. Does that sound good?
-[Emily] That sounds perfect! I love hiking.`);
+  const [script, setScript] = useState(`<[Mark]> Hello Emily, how are you today?
+<[Emily]> I'm doing great, thanks for asking! How about you?
+<[Mark]> I'm wonderful! I was just thinking about our trip next week.
+<[Emily]> Oh yes! I'm so excited. Have you finished planning everything?
+<[Mark]> Almost! I booked the hotel yesterday.
+<[Emily]> That's wonderful news! What about the activities?
+<[Mark]> I was thinking we could go hiking on Tuesday. Does that sound good?
+<[Emily]> That sounds perfect! I love hiking.`);
 
   const [appState, setAppState] = useState<AppState>('idle');
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);

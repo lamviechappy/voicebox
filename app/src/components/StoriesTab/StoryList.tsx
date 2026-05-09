@@ -322,83 +322,83 @@ const storyList = stories || [];
             <p>{t('stories.empty.noMatches', { query: search })}</p>
           </div>
         ) : (
-filtered.map((story) => {
-              const isActive = selectedStoryId === story.id;
-              return (
-                <div key={story.id} className="relative group">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStoryId(story.id)}
-                    aria-label={t('stories.row.ariaLabel', {
-                      name: story.name,
-                      count: story.item_count,
-                      updated: formatDate(story.updated_at),
-                    })}
-                    aria-pressed={isActive}
-                    className={cn(
-                      'w-full text-left p-3 rounded-lg transition-colors block',
-                      isActive
-                        ? 'bg-muted/70 border border-border'
-                        : 'border border-transparent hover:bg-muted/30',
-                    )}
-                  >
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-[11px] text-muted-foreground font-medium">
-                        {formatDate(story.updated_at)}
-                      <div className="flex-1" />
-                    </div>
-                    <div className="text-[13px] line-clamp-2 leading-snug mb-2">
-                      <span className="text-foreground font-medium">{story.name}</span>
-                      {story.description ? (
-                        <>
-                          <span className="mx-1.5 text-muted-foreground/50">·</span>
-                          <span className="text-muted-foreground">{story.description}</span>
-                        </>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <Badge
-                        variant="secondary"
-                        className="h-5 px-1.5 text-[10px] gap-1 font-medium bg-muted/60 text-muted-foreground"
-                      >
-                        {t('stories.row.itemCount', { count: story.item_count })}
-                      </Badge>
-                    </div>
-                  </button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label={t('stories.row.actionsLabel', { name: story.name })}
-                      >
-                        <MoreHorizontal className="h-3.5 w-3.5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEditClick(story)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        {t('common.edit')}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDuplicate(story.id)}>
-                        <Copy className="mr-2 h-4 w-4" />
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleDeleteClick(story.id)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        {t('common.delete')}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+          filtered.map((story) => {
+            const isActive = selectedStoryId === story.id;
+            return (
+              <div key={story.id} className="relative group">
+                <div
+                  role="button"
+                  onClick={() => setSelectedStoryId(story.id)}
+                  aria-label={t('stories.row.ariaLabel', {
+                    name: story.name,
+                    count: story.item_count,
+                    updated: formatDate(story.updated_at),
+                  })}
+                  aria-pressed={isActive}
+                  className={cn(
+                    'w-full text-left p-3 rounded-lg transition-colors cursor-pointer',
+                    isActive
+                      ? 'bg-muted/70 border border-border'
+                      : 'border border-transparent hover:bg-muted/30',
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-[11px] text-muted-foreground font-medium">
+                      {formatDate(story.updated_at)}
+                    </span>
+                    <div className="flex-1" />
+                  </div>
+                  <div className="text-[13px] line-clamp-2 leading-snug mb-2">
+                    <span className="text-foreground font-medium">{story.name}</span>
+                    {story.description ? (
+                      <>
+                        <span className="mx-1.5 text-muted-foreground/50">·</span>
+                        <span className="text-muted-foreground">{story.description}</span>
+                      </>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Badge
+                      variant="secondary"
+                      className="h-5 px-1.5 text-[10px] gap-1 font-medium bg-muted/60 text-muted-foreground"
+                    >
+                      {t('stories.row.itemCount', { count: story.item_count })}
+                    </Badge>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={t('stories.row.actionsLabel', { name: story.name })}
+                    >
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleEditClick(story)}>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      {t('common.edit')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleDuplicate(story.id)}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Duplicate
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleDeleteClick(story.id)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      {t('common.delete')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            );
+          })
         )}
       </ListPaneScroll>
 
