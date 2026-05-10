@@ -230,13 +230,22 @@ build-server-cuda: _ensure-venv
 [windows]
 build-local: build-server build-server-cuda build-tauri
 
-# Build Tauri desktop app
+# Build Tauri desktop app (macOS only - faster for Apple Silicon)
 [unix]
 build-tauri:
-    cd {{ tauri_dir }} && bun run tauri build
+    cd {{ tauri_dir }} && bun run tauri build --target aarch64-apple-darwin
 
 [windows]
 build-tauri:
+    Set-Location "{{ tauri_dir }}"; bun run tauri build
+
+# Build Tauri desktop app for ALL platforms
+[unix]
+build-tauri-all:
+    cd {{ tauri_dir }} && bun run tauri build
+
+[windows]
+build-tauri-all:
     Set-Location "{{ tauri_dir }}"; bun run tauri build
 
 # Build web app
@@ -397,6 +406,30 @@ clean-all: clean clean-python
     if (Test-Path "{{ tauri_dir }}/node_modules") { Remove-Item -Recurse -Force "{{ tauri_dir }}/node_modules" }
     if (Test-Path "{{ web_dir }}/node_modules") { Remove-Item -Recurse -Force "{{ web_dir }}/node_modules" }
     Push-Location "{{ tauri_dir }}/src-tauri"; cargo clean; Pop-Location
+
+# Deep clean: removes all caches and build artifacts
+[unix]
+clean-deep: clean clean-python
+    rm -rf ~/Library/Application\ Support/pyinstaller
+    rm -rf {{ backend_dir }}/build
+    rm -rf {{ backend_dir }}/dist
+    rm -rf {{ backend_dir }}/*.spec
+    find {{ backend_dir }} -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    find {{ backend_dir }} -type f -name "*.pyc" -delete 2>/dev/null || true
+    cd {{ tauri_dir }}/src-tauri && cargo clean
+    rm -rf {{ app_dir }}/.astro
+    rm -rf {{ app_dir }}/.next
+
+[windows]
+clean-deep: clean clean-python
+    if (Test-Path "{{ backend_dir }}/build") { Remove-Item -Recurse -Force "{{ backend_dir }}/build" }
+    if (Test-Path "{{ backend_dir }}/dist") { Remove-Item -Recurse -Force "{{ backend_dir }}/dist" }
+    Get-ChildItem -Path "{{ backend_dir }}" -Filter "*.spec" -ErrorAction SilentlyContinue | Remove-Item -Force
+    Get-ChildItem -Path "{{ backend_dir }}" -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+    Get-ChildItem -Path "{{ backend_dir }}" -File -Recurse -Filter "*.pyc" -ErrorAction SilentlyContinue | Remove-Item -Force
+    Push-Location "{{ tauri_dir }}/src-tauri"; cargo clean; Pop-Location
+    if (Test-Path "{{ app_dir }}/.astro") { Remove-Item -Recurse -Force "{{ app_dir }}/.astro" }
+    if (Test-Path "{{ app_dir }}/.next") { Remove-Item -Recurse -Force "{{ app_dir }}/.next" }
 
 # ─── Internal ─────────────────────────────────────────────────────────
 
