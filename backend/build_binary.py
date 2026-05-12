@@ -256,6 +256,8 @@ def build_server(cuda=False):
             "backend.utils.dac_shim",
             "--hidden-import",
             "torchaudio",
+            "--collect-all",
+            "audiotools",
             "--collect-submodules",
             "tada",
             # Kokoro 82M — lightweight TTS engine using misaki G2P
@@ -336,6 +338,8 @@ def build_server(cuda=False):
         # When building from a venv with CUDA torch installed, PyInstaller would
         # bundle ~3GB of NVIDIA shared libraries. We exclude both the Python
         # modules and the binary DLLs.
+        # Exclude cv2 to avoid OpenSSL symbol conflicts in frozen builds
+        args.extend(["--exclude-module", "cv2"])
         nvidia_packages = [
             "nvidia",
             "nvidia.cublas",

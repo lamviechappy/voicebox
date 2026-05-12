@@ -52,6 +52,8 @@ setup-python:
     if [ "$(uname -m)" = "arm64" ] && [ "$(uname)" = "Darwin" ]; then
         echo "Detected Apple Silicon — installing MLX dependencies..."
         {{ pip }} install -r {{ backend_dir }}/requirements-mlx.txt
+        # mlx-audio is required for Fish Audio S2 Pro but not in requirements-mlx.txt
+        {{ pip }} install --no-deps mlx-audio
     fi
     {{ pip }} install git+https://github.com/QwenLM/Qwen3-TTS.git
     {{ pip }} install pyinstaller ruff pytest pytest-asyncio -q

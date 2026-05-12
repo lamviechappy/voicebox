@@ -75,8 +75,15 @@ def force_offline_if_cached(is_cached: bool, model_label: str = ""):
                 try:
                     import transformers.utils.hub as tf_hub
 
-                    prev_tf = tf_hub._is_offline_mode
-                    tf_hub._is_offline_mode = True
+                    # transformers v5 renamed _is_offline_mode to is_offline_mode
+                    if hasattr(tf_hub, "_is_offline_mode"):
+                        prev_tf = tf_hub._is_offline_mode
+                        tf_hub._is_offline_mode = True
+                    elif hasattr(tf_hub, "is_offline_mode"):
+                        prev_tf = tf_hub.is_offline_mode
+                        tf_hub.is_offline_mode = True
+                    else:
+                        prev_tf = None
                 except ImportError:
                     prev_tf = None
 
@@ -95,7 +102,10 @@ def force_offline_if_cached(is_cached: bool, model_label: str = ""):
                     try:
                         import transformers.utils.hub as tf_hub
 
-                        tf_hub._is_offline_mode = prev_tf
+                        if hasattr(tf_hub, "_is_offline_mode"):
+                            tf_hub._is_offline_mode = prev_tf
+                        elif hasattr(tf_hub, "is_offline_mode"):
+                            tf_hub.is_offline_mode = prev_tf
                     except ImportError:
                         pass
                 if prev_env is not None:

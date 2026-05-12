@@ -44,10 +44,13 @@ def test_mutates_cached_huggingface_hub_constant():
 
 
 def test_mutates_cached_transformers_constant():
-    original = _tf_hub()._is_offline_mode
+    tf = _tf_hub()
+    # transformers v5 renamed _is_offline_mode to is_offline_mode
+    attr = "_is_offline_mode" if hasattr(tf, "_is_offline_mode") else "is_offline_mode"
+    original = getattr(tf, attr)
     with force_offline_if_cached(True, "t"):
-        assert _tf_hub()._is_offline_mode is True
-    assert original == _tf_hub()._is_offline_mode
+        assert getattr(tf, attr) is True
+    assert original == getattr(tf, attr)
 
 
 def test_sets_env_variable():

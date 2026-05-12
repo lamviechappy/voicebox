@@ -8,4 +8,3 @@ librosa
 python-multipart
 huggingface_hub
 omnivoice
-omnivoice
