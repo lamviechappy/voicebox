@@ -52,8 +52,6 @@ setup-python:
     if [ "$(uname -m)" = "arm64" ] && [ "$(uname)" = "Darwin" ]; then
         echo "Detected Apple Silicon — installing MLX dependencies..."
         {{ pip }} install -r {{ backend_dir }}/requirements-mlx.txt
-        # mlx-audio is required for Fish Audio S2 Pro but not in requirements-mlx.txt
-        {{ pip }} install --no-deps mlx-audio
     fi
     {{ pip }} install git+https://github.com/QwenLM/Qwen3-TTS.git
     {{ pip }} install pyinstaller ruff pytest pytest-asyncio -q
@@ -98,6 +96,26 @@ setup-python:
 # Install JavaScript dependencies
 setup-js:
     bun install
+
+# Install MLX packages (Apple Silicon only)
+# mlx-audio: required for Fish Audio S2 Pro and Qwen3-TTS.
+#   Must use --no-deps to avoid transformers>=5.5.0 conflicting with
+#   the transformers<=4.57.6 cap in requirements.txt.
+# mlx-lm: required for Qwen3-TTS LLM backend (personality/rewrite).
+#   Use mlx-lm==0.29.1 — newer versions require transformers==5.x which
+#   conflicts with our transformers<=4.57.6 cap.
+[unix]
+setup-mlx: _ensure-venv
+if [ "$(uname -m)" != "arm64" ] || [ "$(uname)" != "Darwin" ]; then
+    echo "MLX packages require Apple Silicon. Skipping."
+else
+    {{ pip }} install --no-deps mlx-audio==0.4.3
+    {{ pip }} install -r {{ backend_dir }}/requirements-mlx-lm.txt
+fi
+
+[windows]
+setup-mlx: _ensure-venv
+    Write-Host "MLX packages require Apple Silicon. Skipping."
 
 # ─── Development ──────────────────────────────────────────────────────
 

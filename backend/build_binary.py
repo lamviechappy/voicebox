@@ -340,6 +340,16 @@ def build_server(cuda=False):
         # modules and the binary DLLs.
         # Exclude cv2 to avoid OpenSSL symbol conflicts in frozen builds
         args.extend(["--exclude-module", "cv2"])
+        # Exclude dac to prevent real descript-audio-codec from being bundled.
+        # dac_shim.py provides fake dac modules to satisfy TADA imports,
+        # but the real dac package uses @torch.jit.script which requires
+        # source files that PyInstaller doesn't bundle.
+        args.extend(["--exclude-module", "dac"])
+        # Exclude dac to prevent real descript-audio-codec from being bundled.
+        # dac_shim.py provides fake dac modules to satisfy TADA imports,
+        # but the real dac package uses @torch.jit.script which requires
+        # source files that PyInstaller doesn't bundle.
+        args.extend(["--exclude-module", "dac"])
         nvidia_packages = [
             "nvidia",
             "nvidia.cublas",

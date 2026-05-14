@@ -71,5 +71,3 @@ sse-starlette>=2.0
 python-multipart>=0.0.6
 Pillow>=10.0.0
 
-# MLX
-mlx-audio

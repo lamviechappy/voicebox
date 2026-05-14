@@ -29,7 +29,28 @@
       "Bash(./backend/venv/bin/python -c \"import sys; sys.path.insert\\(0, '.'\\); from backend.services.story_flow import parse_story_script, generate_story_flow; print\\('Backend services OK'\\)\")",
       "Bash(./backend/venv/bin/python -c \"import sys; sys.path.insert\\(0, '.'\\); from backend.routes.story_flow import router; print\\('Backend routes OK'\\)\")",
       "Bash(npx tsc *)",
-      "Bash(./backend/venv/bin/python -c \"import sys; sys.path.insert\\(0, '.'\\); from backend.services.story_flow import parse_story_script, generate_story_flow; print\\('OK'\\)\")"
+      "Bash(./backend/venv/bin/python -c \"import sys; sys.path.insert\\(0, '.'\\); from backend.services.story_flow import parse_story_script, generate_story_flow; print\\('OK'\\)\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(curl -s -X POST http://127.0.0.1:17493/generate -H 'Content-Type: application/json' -d '{\"profile_id\":\"00000000-0000-0000-0000-000000000001\",\"text\":\"Hello world test\",\"language\":\"en\",\"engine\":\"fish_speech\"}')",
+      "Bash(curl -s http://127.0.0.1:17493/generate/41577252-7312-4ce2-b3bb-ee7d01b0ce58/status)",
+      "Bash(curl -s http://127.0.0.1:17493/history)",
+      "Bash(curl -s http://127.0.0.1:17493/history/f2be1a7e-14da-44e2-9e70-94d3cb16dee8)",
+      "Bash(curl -s http://127.0.0.1:17493/history/41577252-7312-4ce2-b3bb-ee7d01b0ce58)",
+      "Bash(curl -s http://127.0.0.1:17493/history/88bd8841-2c75-47bc-ba3b-0f0c8a925d5f)",
+      "Bash(curl -s http://127.0.0.1:17493/models/status)",
+      "Bash(curl -s -X POST http://127.0.0.1:17493/generate -H 'Content-Type: application/json' -d '{\"profile_id\":\"5f5fe643-e508-4847-9474-f62c0d6d16c9\",\"text\":\"Hello world\",\"language\":\"en\",\"engine\":\"fish_speech\"}')",
+      "Bash(curl *)",
+      "Bash(xargs kill -9)",
+      "Bash(pip index *)",
+      "WebSearch",
+      "Bash(python -c \"from backends.fish_speech_backend import FishSpeechTTSBackend; print\\('OK'\\)\")",
+      "Bash(python *)",
+      "Bash(./backend/venv/bin/python *)",
+      "Bash(./backend/venv/bin/pip show *)",
+      "Bash(./backend/venv/bin/pip install *)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "voicebox"
+  ]
 }

@@ -72,7 +72,7 @@ a = Analysis(
     hookspath=['pyi_hooks'],
     hooksconfig={},
     runtime_hooks=['pyi_rth_numpy_compat.py', 'pyi_rth_torch_compiler_disable.py'],
-    excludes=['cv2', 'nvidia', 'nvidia.cublas', 'nvidia.cuda_cupti', 'nvidia.cuda_nvrtc', 'nvidia.cuda_runtime', 'nvidia.cudnn', 'nvidia.cufft', 'nvidia.curand', 'nvidia.cusolver', 'nvidia.cusparse', 'nvidia.nccl', 'nvidia.nvjitlink', 'nvidia.nvtx'],
+    excludes=['cv2', 'dac', 'dac', 'nvidia', 'nvidia.cublas', 'nvidia.cuda_cupti', 'nvidia.cuda_nvrtc', 'nvidia.cuda_runtime', 'nvidia.cudnn', 'nvidia.cufft', 'nvidia.curand', 'nvidia.cusolver', 'nvidia.cusparse', 'nvidia.nccl', 'nvidia.nvjitlink', 'nvidia.nvtx'],
     noarchive=False,
     optimize=0,
 )

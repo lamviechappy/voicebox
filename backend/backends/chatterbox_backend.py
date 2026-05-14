@@ -145,7 +145,7 @@ class ChatterboxTTSBackend:
         self,
         audio_paths: List[str],
         reference_texts: List[str],
-    ) -> Tuple[np.ndarray, str]:
+    ):
         return await _combine_voice_prompts(audio_paths, reference_texts)
 
     # Per-language generation defaults. Lower temp + higher cfg = clearer speech.

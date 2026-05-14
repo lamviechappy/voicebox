@@ -290,6 +290,30 @@ def model_load_progress(
         tracker_context.__exit__(None, None, None)
 
 
+def run_with_timeout(func, timeout_seconds: int, name: str = "operation") -> None:
+    """Run func in a thread with a timeout. Raises TimeoutError on expiration."""
+    import threading
+
+    class _TimeoutError(Exception):
+        pass
+
+    exc = {}
+
+    def target():
+        try:
+            func()
+        except Exception as e:
+            exc["e"] = e
+
+    t = threading.Thread(target=target, daemon=True)
+    t.start()
+    t.join(timeout=timeout_seconds)
+    if t.is_alive():
+        raise _TimeoutError(f"{name} timed out after {timeout_seconds}s")
+    if exc:
+        raise exc["e"]
+
+
 def patch_chatterbox_f32(model) -> None:
     """
     Patch float64 -> float32 dtype mismatches in upstream chatterbox.

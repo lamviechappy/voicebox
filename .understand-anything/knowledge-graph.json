@@ -1,194 +1,2339 @@
 {
   "version": "1.0.0",
   "project": {
-    "name": "Voicebox",
-    "languages": ["TypeScript", "Python", "Rust"],
-    "frameworks": ["React", "FastAPI", "Tauri"],
-    "description": "The open-source voice synthesis studio.",
-    "analyzedAt": "2026-04-18T00:00:00Z",
-    "gitCommitHash": "476abe07fc2c1587f4b3e3916134018ebacd143d"
+    "name": "voicebox",
+    "languages": [
+      "TypeScript",
+      "Python",
+      "Rust"
+    ],
+    "frameworks": [
+      "React",
+      "Vite",
+      "Tauri v2",
+      "FastAPI",
+      "PyTorch",
+      "MLX"
+    ],
+    "description": "Voicebox is a local-first AI voice studio \u2014 clone voices, generate speech in 23 languages across 7 TTS engines, dictate with global hotkeys.",
+    "analyzedAt": "2026-05-12T00:00:00Z",
+    "gitCommitHash": "6c2942e9d38fb1e8f8bbff69579842a30aa108da"
   },
   "nodes": [
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/backend/backends/base.py",
-      "name": "TTS Backend Base Utilities",
-      "description": "Shared utilities for TTS/STT backend implementations, including model caching, device detection, and audio processing.",
-      "tags": ["backend", "tts", "base", "utils"],
-      "summary": "Provides functions for cache checking, device detection (CUDA/ROCm/MPS/XPU), voice prompt combination, and model loading progress tracking across all TTS engines."
+      "id": "backend/backends/__init__.py",
+      "type": "core",
+      "role": "backend-abstraction-layer",
+      "filePath": "backend/backends/__init__.py",
+      "lineCount": 823,
+      "summary": "Unified backend abstraction layer with TTS/STT/LLM protocol definitions, model config registry, and engine factory functions. Defines TTSBackend, STTBackend, LLMBackend protocols and registers 9 TTS engines (Qwen, LuxTTS, Chatterbox, TADA, Kokoro, Fish Speech, OmniVoice) with backend-aware HF repo IDs.",
+      "exports": [
+        "TTSBackend",
+        "STTBackend",
+        "LLMBackend",
+        "ModelConfig",
+        "get_tts_backend_for_engine",
+        "get_stt_backend",
+        "get_llm_backend",
+        "get_all_model_configs",
+        "engine_needs_trim",
+        "load_engine_model"
+      ],
+      "imports": [
+        "utils.hf_offline_patch",
+        "utils.dac_shim",
+        "utils.platform_detect"
+      ],
+      "relationships": [
+        "uses:utils.hf_offline_patch",
+        "uses:utils.dac_shim",
+        "uses:utils.platform_detect"
+      ]
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/backend/pyproject.toml",
-      "name": "Backend Python Project Manifest",
-      "description": "Python project configuration for Voicebox backend, including Ruff linter and pytest settings.",
-      "tags": ["python", "backend", "config", "lint"],
-      "summary": "Configures Ruff for linting/formatting and pytest for testing. Requires Python 3.12+."
+      "id": "backend/backends/base.py",
+      "type": "shared",
+      "role": "backend-utilities",
+      "filePath": "backend/backends/base.py",
+      "lineCount": 328,
+      "summary": "Shared utilities for TTS/STT backend implementations: cache checking (is_model_cached), device detection (get_torch_device), voice prompt combination, and model loading progress tracking. Eliminates duplication across backends.",
+      "exports": [
+        "is_model_cached",
+        "get_torch_device",
+        "check_cuda_compatibility",
+        "empty_device_cache",
+        "manual_seed",
+        "combine_voice_prompts",
+        "model_load_progress",
+        "patch_chatterbox_f32"
+      ],
+      "imports": [
+        "utils.audio",
+        "utils.progress",
+        "utils.hf_progress",
+        "utils.tasks"
+      ],
+      "relationships": [
+        "uses:utils.audio",
+        "uses:utils.progress",
+        "uses:utils.hf_progress",
+        "uses:utils.tasks"
+      ]
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/.agents/skills/add-tts-engine/SKILL.md",
-      "name": "add-tts-engine Skill Guide",
-      "description": "Comprehensive, multi-phase guide for integrating a new TTS engine into Voicebox.",
-      "tags": ["skill", "tts", "guide", "integration"],
-      "summary": "Step-by-step process covering dependency research, backend/frontend implementation, and PyInstaller bundling."
+      "id": "backend/backends/fish_speech_backend.py",
+      "type": "engine",
+      "role": "tts-backend",
+      "filePath": "backend/backends/fish_speech_backend.py",
+      "lineCount": 230,
+      "summary": "Fish Audio S2 Pro TTS backend using mlx-audio. Supports multilingual voice cloning via ref_audio, handles audio resampling to 44.1kHz, and caches voice prompts. Uses Pattern B (deferred data) for voice prompts.",
+      "exports": [
+        "FishSpeechTTSBackend"
+      ],
+      "imports": [
+        "backends",
+        "backends.base",
+        "utils.cache",
+        "utils.hf_offline_patch"
+      ],
+      "relationships": [
+        "implements:backends.TTSBackend protocol",
+        "uses:backends.base utilities",
+        "uses:utils.cache"
+      ]
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/.agents/skills/triage-prs/SKILL.md",
-      "name": "Triage PRs Skill Guide",
-      "description": "Skill to triage open PRs before a release: classifies them into must-merge, candidate, superseded, or deferred, and executes a tracked merge loop.",
-      "tags": ["skill", "pr", "triage", "release"],
-      "summary": "Workflow involves setting up a review worktree, gathering metadata, classifying into tiers, and executing the merge loop with a tracked triage doc."
+      "id": "backend/backends/hume_backend.py",
+      "type": "engine",
+      "role": "tts-backend",
+      "filePath": "backend/backends/hume_backend.py",
+      "lineCount": 347,
+      "summary": "HumeAI TADA TTS backend with two variants: tada-1b (English) and tada-3b-ml (multilingual). Uses flow-matching diffusion with forced-alignment encoder for 1:1 token-audio alignment. Forces CPU on macOS due to MPS incompatibilities. Patches tokenizer path to avoid gated Meta repo.",
+      "exports": [
+        "HumeTadaBackend"
+      ],
+      "imports": [
+        "backends",
+        "backends.base",
+        "utils.cache"
+      ],
+      "relationships": [
+        "implements:backends.TTSBackend protocol",
+        "uses:backends.base utilities",
+        "uses:utils.cache",
+        "uses:utils.dac_shim"
+      ]
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/.agents/skills/draft-release-notes/SKILL.md",
-      "name": "Draft Release Notes Skill Guide",
-      "description": "Skill to generate a narrative release story for the [Unreleased] section of CHANGELOG.md based on recent commit history.",
-      "tags": ["skill", "release", "changelog", "documentation"],
-      "summary": "Follows a structured format focusing on theme groups and narrative over simple lists."
+      "id": "backend/routes/generations.py",
+      "type": "api",
+      "role": "generation-endpoints",
+      "filePath": "backend/routes/generations.py",
+      "lineCount": 473,
+      "summary": "TTS generation HTTP endpoints: /generate, /generate/{id}/retry, /generate/{id}/regenerate, /generate/{id}/cancel, /generate/{id}/status (SSE), /generate/stream, /generate/import. Handles engine resolution, personality rewriting, effects chain application, and audio streaming.",
+      "exports": [
+        "router",
+        "IMPORTED_AUDIO_PROFILE_NAME"
+      ],
+      "imports": [
+        "services.generation",
+        "services.history",
+        "services.personality",
+        "services.profiles",
+        "services.tts",
+        "database"
+      ],
+      "relationships": [
+        "calls:services.generation",
+        "calls:services.profiles",
+        "calls:services.history",
+        "calls:services.tts"
+      ]
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/app/package.json",
-      "name": "App Package Manifest",
-      "description": "Node.js package manifest for the Voicebox React frontend application.",
-      "tags": ["package", "frontend", "react", "config"],
-      "summary": "Lists key dependencies: React, Zustand, React Query, TanStack Router, Radix UI, Tailwind, and Tauri API plugins. Build system: Vite."
+      "id": "backend/services/generation.py",
+      "type": "service",
+      "role": "generation-orchestration",
+      "filePath": "backend/services/generation.py",
+      "lineCount": 349,
+      "summary": "Unified TTS generation orchestration with three modes: generate (full pipeline with effects), retry (re-run failed), regenerate (new version with variation). Handles model loading, voice prompt creation, chunked TTS, normalization, effects, and version management.",
+      "exports": [
+        "run_generation",
+        "generate_audio_sync"
+      ],
+      "imports": [
+        "config",
+        "services.history",
+        "services.profiles",
+        "services.versions",
+        "utils.tasks",
+        "utils.chunked_tts",
+        "utils.audio",
+        "utils.effects",
+        "backends"
+      ],
+      "relationships": [
+        "calls:services.profiles",
+        "calls:services.history",
+        "calls:services.versions",
+        "calls:utils.chunked_tts",
+        "calls:utils.audio",
+        "calls:utils.effects",
+        "calls:backends"
+      ]
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/backend/routes/generations.py",
-      "name": "TTS Generation Endpoints",
-      "description": "FastAPI endpoints for TTS speech generation, retry, regeneration, status streaming, and direct audio streaming.",
-      "tags": ["backend", "fastapi", "routes", "tts"],
-      "summary": "Handles POST /generate, retry, regenerate, SSE status streaming, and direct WAV audio streaming via /generate/stream."
+      "id": "backend/services/profiles.py",
+      "type": "service",
+      "role": "profile-management",
+      "filePath": "backend/services/profiles.py",
+      "lineCount": 711,
+      "summary": "Voice profile management: CRUD operations, sample management, avatar processing, voice prompt creation. Supports three profile types: cloned (audio samples), preset (engine-specific voices), designed (AI-generated from text). Manages profile caching and cache invalidation.",
+      "exports": [
+        "create_profile",
+        "add_profile_sample",
+        "get_profile",
+        "list_profiles",
+        "update_profile",
+        "delete_profile",
+        "create_voice_prompt_for_profile",
+        "upload_avatar",
+        "delete_profile_sample",
+        "validate_profile_engine"
+      ],
+      "imports": [
+        "config",
+        "database",
+        "models",
+        "utils.audio",
+        "utils.cache",
+        "utils.images",
+        "backends"
+      ],
+      "relationships": [
+        "calls:database",
+        "calls:models",
+        "calls:utils.audio",
+        "calls:utils.cache",
+        "calls:utils.images",
+        "calls:backends"
+      ]
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/app/src/App.tsx",
-      "name": "Voicebox Main App Component",
-      "description": "Root React component for the Voicebox app, handling server lifecycle, auto-update, and initial UI routing.",
-      "tags": ["frontend", "react", "app", "ui"],
-      "summary": "Manages server auto-start, health-check polling, loading screen with cycling messages, and lifecycle callbacks for platform integration."
+      "id": "app/App.tsx:App",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/App.tsx",
+      "line": 78,
+      "name": "App",
+      "summary": "Root React component. Detects dictate view mode vs main app. Shows loading screen during Tauri server startup with animated messages and error handling.",
+      "exports": [
+        "default"
+      ],
+      "imports": [
+        "@hookform/resolvers/zod",
+        "react",
+        "react-hook-form",
+        "zod",
+        "@/components/ui/use-toast",
+        "@/lib/api/client",
+        "@/lib/api/types",
+        "@/lib/constants/languages",
+        "@/lib/hooks/useGeneration",
+        "@/lib/hooks/useModelDownloadToast",
+        "@/lib/hooks/useSettings",
+        "@/stores/generationStore",
+        "@/stores/uiStore"
+      ],
+      "children": [
+        "app/App.tsx:MainApp",
+        "app/App.tsx:isDictateView"
+      ]
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/tauri/src-tauri/src/main.rs",
-      "name": "Tauri Desktop App Main Entry Point",
-      "description": "Rust main entry point for the Tauri desktop application, managing server lifecycle, audio capture, and window events.",
-      "tags": ["tauri", "rust", "desktop", "app"],
-      "summary": "Handles server auto-start/stop, platform-specific process detection, audio capture/output, and window close events with keep-running functionality."
+      "id": "app/App.tsx:MainApp",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/App.tsx",
+      "line": 91,
+      "name": "MainApp",
+      "summary": "Main app shell. Handles Tauri server lifecycle (auto-start, health-check polling fallback), platform lifecycle callbacks, loading screen, then renders RouterProvider.",
+      "exports": [],
+      "imports": []
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/CONTRIBUTING.md",
-      "name": "Voicebox Contributing Guide",
-      "description": "Comprehensive guide for contributing to Voicebox, covering development setup, code style, and the PR process.",
-      "tags": ["contributing", "development", "guide"],
-      "summary": "Details prerequisites, setup via `just setup`, development workflow, and API development guidelines for FastAPI and React."
+      "id": "app/App.tsx:isVoiceboxHealthResponse",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/App.tsx",
+      "line": 32,
+      "name": "isVoiceboxHealthResponse",
+      "summary": "Validates a HealthResponse has the expected Voicebox shape (status=healthy, model_loaded boolean, gpu_available boolean). Prevents misidentifying unrelated services on the same port."
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/backend/app.py",
-      "name": "FastAPI Application Factory",
-      "description": "Core FastAPI application factory and lifecycle management for Voicebox, including CORS, GPU detection, and startup/shutdown events.",
-      "tags": ["backend", "fastapi", "app", "api"],
-      "summary": "Handles CORS configuration, GPU detection (CUDA/ROCm/MPS/MLX/XPU), model loading/unloading, and serves the built React frontend in production."
+      "id": "app/App.tsx:isPortInUseError",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/App.tsx",
+      "line": 45,
+      "name": "isPortInUseError",
+      "summary": "Detects port-in-use errors to distinguish between an externally-running server (health-check polling) vs a real startup failure."
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/CHANGELOG.md",
-      "name": "Voicebox Changelog",
-      "description": "Chronological record of all notable changes made to Voicebox, documenting new features, bug fixes, and platform improvements.",
-      "tags": ["changelog", "release", "history"],
-      "summary": "Details v0.4.0 as the biggest release, adding HumeAI TADA, Kokoro 82M, and Qwen CustomVoice engines, plus GPU compatibility diagnostics and Intel Arc support."
+      "id": "app/router.tsx:router",
+      "type": "variable",
+      "lang": "typescript",
+      "file": "app/src/router.tsx",
+      "line": 233,
+      "name": "router",
+      "summary": "TanStack Router instance. Root layout wraps AppFrame > Sidebar + Outlet. Routes: /, /stories, /story-flow, /voices, /captures, /effects, /models, /settings/* sub-routes.",
+      "exports": [
+        "router"
+      ],
+      "imports": [
+        "@tanstack/react-router",
+        "@/components/AppFrame",
+        "@/components/Sidebar",
+        "@/components/MainEditor",
+        "@/components/StoriesTab",
+        "@/components/StoryFlowTab",
+        "@/components/VoicesTab",
+        "@/components/CapturesTab",
+        "@/components/EffectsTab",
+        "@/components/ModelsTab",
+        "@/components/ServerTab/*",
+        "@/components/ui/toaster",
+        "@/lib/hooks/useGenerationProgress",
+        "@/lib/hooks/useModelDownloadToast",
+        "@/lib/hooks/useRestoreActiveTasks"
+      ]
     },
     {
-      "id": "file:/Volumes/WD500/dev/voicebox/.agents/skills/release-bump/SKILL.md",
-      "name": "Release Bump Skill Guide",
-      "description": "Skill to finalize a release: stamps the [Unreleased] changelog, runs bumpversion, and creates a tagged release commit.",
-      "tags": ["skill", "release", "version", "changelog"],
-      "summary": "Workflow involves verifying clean state, determining bump level, stamping changelog, and running bumpversion."
+      "id": "app/router.tsx:RootLayout",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/router.tsx",
+      "line": 35,
+      "name": "RootLayout",
+      "summary": "Root layout component. Subscribes to generation progress SSE, monitors active downloads, renders AppFrame with Sidebar + Outlet, and a global Toaster."
+    },
+    {
+      "id": "app/router.tsx:DownloadToastRestorer",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/router.tsx",
+      "line": 74,
+      "name": "DownloadToastRestorer",
+      "summary": "Restores download toast notifications for any active tasks on app load."
+    },
+    {
+      "id": "app/lib/api/client.ts:ApiClient",
+      "type": "class",
+      "lang": "typescript",
+      "file": "app/src/lib/api/client.ts",
+      "line": 74,
+      "name": "ApiClient",
+      "summary": "HTTP API client for all backend endpoints. ~60 methods covering: health, profiles CRUD + samples/avatar/export/import, speech generation, history, captures, settings, MCP bindings, model management, CUDA backend, stories CRUD + items, effects/presets, story-flow. Reads serverUrl from serverStore.",
+      "exports": [
+        "apiClient (singleton)"
+      ],
+      "imports": [
+        "zustand (store)",
+        "@/stores/serverStore",
+        "@/lib/api/types"
+      ]
+    },
+    {
+      "id": "app/lib/api/client.ts:formatErrorDetail",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/lib/api/client.ts",
+      "line": 59,
+      "name": "formatErrorDetail",
+      "summary": "Normalizes FastAPI/Pydantic error detail shapes (string, array of {msg}, or object {message}) into a single human-readable string."
+    },
+    {
+      "id": "app/lib/hooks/useGenerationForm.ts:useGenerationForm",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/lib/hooks/useGenerationForm.ts",
+      "line": 45,
+      "name": "useGenerationForm",
+      "summary": "React Hook. Manages generation form with Zod schema (text, language, seed, modelSize, engine, instruct, personality). Handles model download detection, engine-to-modelName mapping, effects chain composition, form submission, and toast notifications.",
+      "exports": [
+        "useGenerationForm",
+        "GenerationFormValues"
+      ],
+      "imports": [
+        "zod",
+        "@hookform/resolvers/zod",
+        "react-hook-form",
+        "@/components/ui/use-toast",
+        "@/lib/api/client",
+        "@/lib/api/types",
+        "@/lib/constants/languages",
+        "@/lib/hooks/useGeneration",
+        "@/lib/hooks/useModelDownloadToast",
+        "@/lib/hooks/useSettings",
+        "@/stores/generationStore",
+        "@/stores/uiStore"
+      ]
+    },
+    {
+      "id": "app/lib/hooks/useGenerationForm.ts:generationSchema",
+      "type": "variable",
+      "lang": "typescript",
+      "file": "app/src/lib/hooks/useGenerationForm.ts",
+      "line": 15,
+      "name": "generationSchema",
+      "summary": "Zod schema for GenerationFormValues. Fields: text (1-50000), language (LANGUAGE_CODES enum), seed, modelSize (1.7B/0.6B/1B/3B), instruct, engine (10 engines), personality."
+    },
+    {
+      "id": "app/lib/hooks/useGeneration.ts:useGeneration",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/lib/hooks/useGeneration.ts",
+      "line": 5,
+      "name": "useGeneration",
+      "summary": "TanStack Query useMutation hook. Calls apiClient.generateSpeech(), invalidates history query on success.",
+      "exports": [
+        "useGeneration"
+      ],
+      "imports": [
+        "@tanstack/react-query",
+        "@/lib/api/client",
+        "@/lib/api/types"
+      ]
+    },
+    {
+      "id": "app/stores/generationStore.ts:useGenerationStore",
+      "type": "variable",
+      "lang": "typescript",
+      "file": "app/src/stores/generationStore.ts",
+      "line": 18,
+      "name": "useGenerationStore",
+      "summary": "Zustand store for generation lifecycle. Tracks pendingGenerationIds (Set), isGenerating (derived), pendingStoryAdds (Map<generationId, storyId>), activeGenerationId.",
+      "exports": [
+        "useGenerationStore"
+      ],
+      "imports": [
+        "zustand"
+      ]
+    },
+    {
+      "id": "app/stores/generationStore.ts:GenerationState",
+      "type": "interface",
+      "lang": "typescript",
+      "file": "app/src/stores/generationStore.ts",
+      "line": 3,
+      "name": "GenerationState",
+      "summary": "Interface: pendingGenerationIds, isGenerating, pendingStoryAdds Map, activeGenerationId. Actions: add/removePendingGeneration, add/removePendingStoryAdd, setActiveGenerationId."
+    },
+    {
+      "id": "app/components/Generation/FloatingGenerateBox.tsx:FloatingGenerateBox",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/FloatingGenerateBox.tsx",
+      "line": 35,
+      "name": "FloatingGenerateBox",
+      "summary": "Floating generation panel. Textarea + language/engine/effects selectors + compose/personality/instruct toggles + generate button. Syncs form with selectedProfile. Tracks pending story adds. Responsive positioning on /stories vs other routes.",
+      "exports": [],
+      "imports": [
+        "@tanstack/react-query",
+        "@tanstack/react-router",
+        "framer-motion",
+        "lucide-react",
+        "react-hook-form",
+        "react-i18next",
+        "@/components/ui/*",
+        "@/lib/api/client",
+        "@/lib/constants/languages",
+        "@/lib/hooks/useGenerationForm",
+        "@/lib/hooks/useProfiles",
+        "@/lib/hooks/useStories",
+        "@/lib/utils/cn",
+        "@/stores/generationStore",
+        "@/stores/storyStore",
+        "@/stores/uiStore",
+        "./EngineModelSelector",
+        "./ParalinguisticInput"
+      ],
+      "children": []
+    },
+    {
+      "id": "app/components/Generation/FloatingGenerateBox.tsx:composeMutation",
+      "type": "variable",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/FloatingGenerateBox.tsx",
+      "line": 58,
+      "name": "composeMutation",
+      "summary": "useMutation: calls apiClient.composeWithPersonality(selectedProfileId) to generate an in-character utterance for the textarea."
+    },
+    {
+      "id": "app/components/Generation/EngineModelSelector.tsx:ENGINE_OPTIONS",
+      "type": "variable",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 19,
+      "name": "ENGINE_OPTIONS",
+      "summary": "Const array of 12 engine+modelSize options: qwen 1.7B/0.6B, qwen_custom_voice 1.7B/0.6B, luxtts, chatterbox, chatterbox_turbo, tada 1B/3B, kokoro, fish_speech, omnivoice."
+    },
+    {
+      "id": "app/components/Generation/EngineModelSelector.tsx:ENGINE_DESCRIPTIONS",
+      "type": "variable",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 34,
+      "name": "ENGINE_DESCRIPTIONS",
+      "summary": "Record mapping each engine to a human-readable one-liner description."
+    },
+    {
+      "id": "app/components/Generation/EngineModelSelector.tsx:CLONING_ENGINES",
+      "type": "variable",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 50,
+      "name": "CLONING_ENGINES",
+      "summary": "Set of engines that support cloned (reference audio) profiles: qwen, luxtts, chatterbox, chatterbox_turbo, tada, fish_speech, omnivoice."
+    },
+    {
+      "id": "app/components/Generation/EngineModelSelector.tsx:applyEngineSelection",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 64,
+      "name": "applyEngineSelection",
+      "summary": "Parses engine:modelSize selector value, updates form engine/modelSize/language fields. Handles English-only forced reset for luxtts/chatterbox_turbo and TADA 1B."
+    },
+    {
+      "id": "app/components/Generation/EngineModelSelector.tsx:EngineModelSelector",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 120,
+      "name": "EngineModelSelector",
+      "summary": "React component. Dropdown select listing available engine/modelSize options filtered by selectedProfile compatibility. Auto-selects first option if current is incompatible.",
+      "exports": [
+        "EngineModelSelector",
+        "getEngineDescription",
+        "isProfileCompatibleWithEngine",
+        "applyEngineSelection"
+      ]
+    },
+    {
+      "id": "app/components/Generation/EngineModelSelector.tsx:getEngineDescription",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 158,
+      "name": "getEngineDescription",
+      "summary": "Returns ENGINE_DESCRIPTIONS[engine] or empty string."
+    },
+    {
+      "id": "app/components/Generation/EngineModelSelector.tsx:isProfileCompatibleWithEngine",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 166,
+      "name": "isProfileCompatibleWithEngine",
+      "summary": "Checks profile.voice_type: preset voices must match preset_engine; cloned voices must be in CLONING_ENGINES set."
+    },
+    {
+      "id": "app/components/Generation/EngineModelSelector.tsx:getAvailableOptions",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 52,
+      "name": "getAvailableOptions",
+      "summary": "Filters ENGINE_OPTIONS by profile compatibility using isProfileCompatibleWithEngine."
+    },
+    {
+      "id": "app/components/Generation/EngineModelSelector.tsx:getSelectValue",
+      "type": "function",
+      "lang": "typescript",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 57,
+      "name": "getSelectValue",
+      "summary": "Maps engine + modelSize form values to the combined selector value string (e.g. 'qwen:1.7B')."
+    },
+    {
+      "id": "backend/services/task_queue.py",
+      "type": "module",
+      "data": {
+        "name": "task_queue",
+        "category": "service",
+        "responsibility": "Serial generation queue \u2014 ensures only one TTS inference runs at a time to avoid GPU contention",
+        "key_classes": [
+          "GenerationJob"
+        ],
+        "key_functions": [
+          "init_queue",
+          "enqueue_generation",
+          "cancel_generation",
+          "create_background_task",
+          "_generation_worker"
+        ]
+      }
+    },
+    {
+      "id": "backend/services/task_queue.py/GenerationJob",
+      "type": "class",
+      "data": {
+        "name": "GenerationJob",
+        "category": "dataclass",
+        "file": "backend/services/task_queue.py",
+        "line": 15,
+        "doc": "Queued generation work plus the generation ID it belongs to.",
+        "fields": [
+          "generation_id: str",
+          "coro: Coroutine"
+        ]
+      }
+    },
+    {
+      "id": "backend/services/task_queue.py/init_queue",
+      "type": "function",
+      "data": {
+        "name": "init_queue",
+        "category": "service",
+        "file": "backend/services/task_queue.py",
+        "line": 120,
+        "doc": "Initialize the generation queue and start the worker. Must be called once during application startup.",
+        "parameters": [
+          "force: bool = False"
+        ]
+      }
+    },
+    {
+      "id": "backend/services/task_queue.py/enqueue_generation",
+      "type": "function",
+      "data": {
+        "name": "enqueue_generation",
+        "category": "service",
+        "file": "backend/services/task_queue.py",
+        "line": 96,
+        "doc": "Add a generation coroutine to the serial queue.",
+        "parameters": [
+          "generation_id: str",
+          "coro"
+        ]
+      }
+    },
+    {
+      "id": "backend/services/task_queue.py/cancel_generation",
+      "type": "function",
+      "data": {
+        "name": "cancel_generation",
+        "category": "service",
+        "file": "backend/services/task_queue.py",
+        "line": 105,
+        "doc": "Cancel a queued or running generation if it is still active.",
+        "parameters": [
+          "generation_id: str"
+        ],
+        "returns": "Literal[\"queued\", \"running\"] | None"
+      }
+    },
+    {
+      "id": "backend/services/task_queue.py/_generation_worker",
+      "type": "function",
+      "data": {
+        "name": "_generation_worker",
+        "category": "service",
+        "file": "backend/services/task_queue.py",
+        "line": 39,
+        "doc": "Worker that processes generation tasks one at a time.",
+        "parameters": []
+      }
+    },
+    {
+      "id": "backend/services/task_queue.py/create_background_task",
+      "type": "function",
+      "data": {
+        "name": "create_background_task",
+        "category": "service",
+        "file": "backend/services/task_queue.py",
+        "line": 31,
+        "doc": "Create a background task and prevent it from being garbage collected.",
+        "parameters": [
+          "coro"
+        ]
+      }
+    },
+    {
+      "id": "backend/services/task_queue.py/_force_fail_if_active",
+      "type": "function",
+      "data": {
+        "name": "_force_fail_if_active",
+        "category": "service",
+        "file": "backend/services/task_queue.py",
+        "line": 69,
+        "doc": "Best-effort recovery \u2014 flip an active row to failed if the worker bailed before writing a terminal status.",
+        "parameters": [
+          "generation_id: str",
+          "error: str"
+        ]
+      }
+    },
+    {
+      "id": "backend/services/tts.py",
+      "type": "module",
+      "data": {
+        "name": "tts",
+        "category": "service",
+        "responsibility": "TTS inference module - delegates to backend abstraction layer",
+        "key_functions": [
+          "get_tts_model",
+          "unload_tts_model",
+          "audio_to_wav_bytes"
+        ]
+      }
+    },
+    {
+      "id": "backend/services/tts.py/get_tts_model",
+      "type": "function",
+      "data": {
+        "name": "get_tts_model",
+        "category": "service",
+        "file": "backend/services/tts.py",
+        "line": 13,
+        "doc": "Get TTS backend instance (MLX or PyTorch based on platform).",
+        "parameters": [],
+        "returns": "TTSBackend"
+      }
+    },
+    {
+      "id": "backend/services/tts.py/unload_tts_model",
+      "type": "function",
+      "data": {
+        "name": "unload_tts_model",
+        "category": "service",
+        "file": "backend/services/tts.py",
+        "line": 23,
+        "doc": "Unload TTS model to free memory.",
+        "parameters": []
+      }
+    },
+    {
+      "id": "backend/services/tts.py/audio_to_wav_bytes",
+      "type": "function",
+      "data": {
+        "name": "audio_to_wav_bytes",
+        "category": "utility",
+        "file": "backend/services/tts.py",
+        "line": 29,
+        "doc": "Convert audio array to WAV bytes.",
+        "parameters": [
+          "audio: np.ndarray",
+          "sample_rate: int"
+        ],
+        "returns": "bytes"
+      }
+    },
+    {
+      "id": "backend/services/transcribe.py",
+      "type": "module",
+      "data": {
+        "name": "transcribe",
+        "category": "service",
+        "responsibility": "STT (Speech-to-Text) module - delegates to backend abstraction layer",
+        "key_functions": [
+          "get_whisper_model",
+          "unload_whisper_model"
+        ]
+      }
+    },
+    {
+      "id": "backend/services/transcribe.py/get_whisper_model",
+      "type": "function",
+      "data": {
+        "name": "get_whisper_model",
+        "category": "service",
+        "file": "backend/services/transcribe.py",
+        "line": 9,
+        "doc": "Get STT backend instance (MLX or PyTorch based on platform).",
+        "parameters": [],
+        "returns": "STTBackend"
+      }
+    },
+    {
+      "id": "backend/services/transcribe.py/unload_whisper_model",
+      "type": "function",
+      "data": {
+        "name": "unload_whisper_model",
+        "category": "service",
+        "file": "backend/services/transcribe.py",
+        "line": 19,
+        "doc": "Unload Whisper model to free memory.",
+        "parameters": []
+      }
+    },
+    {
+      "id": "backend/services/history.py",
+      "type": "module",
+      "data": {
+        "name": "history",
+        "category": "service",
+        "responsibility": "Generation history management module",
+        "key_functions": [
+          "create_generation",
+          "update_generation_status",
+          "get_generation",
+          "list_generations",
+          "delete_generation",
+          "delete_failed_generations",
+          "delete_generations_by_profile",
+          "get_generation_stats"
+        ]
+      }
+    },
+    {
+      "id": "backend/services/history.py/create_generation",
+      "type": "function",
+      "data": {
+        "name": "create_generation",
+        "category": "service",
+        "file": "backend/services/history.py",
+        "line": 55,
+        "doc": "Create a new generation history entry.",
+        "parameters": [
+          "profile_id",
+          "text",
+          "language",
+          "audio_path",
+          "duration",
+          "seed",
+          "db",
+          "instruct",
+          "generation_id",
+          "status",
+          "engine",
+          "model_size",
+          "source"
+        ],
+        "returns": "GenerationResponse"
+      }
+    },
+    {
+      "id": "backend/services/history.py/update_generation_status",
+      "type": "function",
+      "data": {
+        "name": "update_generation_status",
+        "category": "service",
+        "file": "backend/services/history.py",
+        "line": 117,
+        "doc": "Update the status of a generation (used by async generation flow).",
+        "parameters": [
+          "generation_id",
+          "status",
+          "db",
+          "audio_path",
+          "duration",
+          "error"
+        ],
+        "returns": "Optional[GenerationResponse]"
+      }
+    },
+    {
+      "id": "backend/services/history.py/get_generation",
+      "type": "function",
+      "data": {
+        "name": "get_generation",
+        "category": "service",
+        "file": "backend/services/history.py",
+        "line": 143,
+        "doc": "Get a generation by ID.",
+        "parameters": [
+          "generation_id",
+          "db"
+        ],
+        "returns": "Optional[GenerationResponse]"
+      }
+    },
+    {
+      "id": "backend/services/history.py/list_generations",
+      "type": "function",
+      "data": {
+        "name": "list_generations",
+        "category": "service",
+        "file": "backend/services/history.py",
+        "line": 164,
+        "doc": "List generations with optional filters.",
+        "parameters": [
+          "query: HistoryQuery",
+          "db: Session"
+        ],
+        "returns": "HistoryListResponse"
+      }
+    },
+    {
+      "id": "backend/services/history.py/delete_generation",
+      "type": "function",
+      "data": {
+        "name": "delete_generation",
+        "category": "service",
+        "file": "backend/services/history.py",
+        "line": 238,
+        "doc": "Delete a generation.",
+        "parameters": [
+          "generation_id",
+          "db"
+        ],
+        "returns": "bool"
+      }
+    },
+    {
+      "id": "backend/services/history.py/delete_failed_generations",
+      "type": "function",
+      "data": {
+        "name": "delete_failed_generations",
+        "category": "service",
+        "file": "backend/services/history.py",
+        "line": 273,
+        "doc": "Delete every generation whose status is 'failed'. Used by 'Clear failed' UI action.",
+        "parameters": [
+          "db: Session"
+        ],
+        "returns": "int"
+      }
+    },
+    {
+      "id": "backend/services/history.py/delete_generations_by_profile",
+      "type": "function",
+      "data": {
+        "name": "delete_generations_by_profile",
+        "category": "service",
+        "file": "backend/services/history.py",
+        "line": 310,
+        "doc": "Delete all generations for a profile.",
+        "parameters": [
+          "profile_id",
+          "db"
+        ],
+        "returns": "int"
+      }
+    },
+    {
+      "id": "backend/services/history.py/get_generation_stats",
+      "type": "function",
+      "data": {
+        "name": "get_generation_stats",
+        "category": "service",
+        "file": "backend/services/history.py",
+        "line": 346,
+        "doc": "Get generation statistics.",
+        "parameters": [
+          "db: Session"
+        ],
+        "returns": "dict"
+      }
+    },
+    {
+      "id": "backend/services/history.py/_get_versions_for_generation",
+      "type": "function",
+      "data": {
+        "name": "_get_versions_for_generation",
+        "category": "service",
+        "file": "backend/services/history.py",
+        "line": 18,
+        "doc": "Get versions list and active version ID for a generation.",
+        "parameters": [
+          "generation_id: str",
+          "db: Session"
+        ],
+        "returns": "tuple"
+      }
+    },
+    {
+      "id": "backend/routes/health.py",
+      "type": "module",
+      "data": {
+        "name": "health",
+        "category": "route",
+        "responsibility": "Health and infrastructure endpoints",
+        "key_endpoints": [
+          "/",
+          "/shutdown",
+          "/watchdog/disable",
+          "/health",
+          "/health/filesystem"
+        ]
+      }
+    },
+    {
+      "id": "backend/routes/health.py/root",
+      "type": "endpoint",
+      "data": {
+        "name": "root",
+        "category": "route",
+        "file": "backend/routes/health.py",
+        "line": 24,
+        "http_method": "GET",
+        "path": "/",
+        "doc": "Root endpoint \u2014 serves SPA index.html in Docker, JSON otherwise."
+      }
+    },
+    {
+      "id": "backend/routes/health.py/shutdown",
+      "type": "endpoint",
+      "data": {
+        "name": "shutdown",
+        "category": "route",
+        "file": "backend/routes/health.py",
+        "line": 35,
+        "http_method": "POST",
+        "path": "/shutdown",
+        "doc": "Gracefully shutdown the server."
+      }
+    },
+    {
+      "id": "backend/routes/health.py/watchdog_disable",
+      "type": "endpoint",
+      "data": {
+        "name": "watchdog_disable",
+        "category": "route",
+        "file": "backend/routes/health.py",
+        "line": 47,
+        "http_method": "POST",
+        "path": "/watchdog/disable",
+        "doc": "Disable the parent process watchdog so the server keeps running."
+      }
+    },
+    {
+      "id": "backend/routes/health.py/health",
+      "type": "endpoint",
+      "data": {
+        "name": "health",
+        "category": "route",
+        "file": "backend/routes/health.py",
+        "line": 56,
+        "http_method": "GET",
+        "path": "/health",
+        "doc": "Health check endpoint.",
+        "returns": "HealthResponse"
+      }
+    },
+    {
+      "id": "backend/routes/health.py/filesystem_health",
+      "type": "endpoint",
+      "data": {
+        "name": "filesystem_health",
+        "category": "route",
+        "file": "backend/routes/health.py",
+        "line": 184,
+        "http_method": "GET",
+        "path": "/health/filesystem",
+        "doc": "Check filesystem health: directory existence, write permissions, and disk space.",
+        "returns": "FilesystemHealthResponse"
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py",
+      "type": "module",
+      "data": {
+        "name": "profiles",
+        "category": "route",
+        "responsibility": "Voice profile endpoints - CRUD operations and advanced features",
+        "key_endpoints": [
+          "/profiles",
+          "/profiles/import",
+          "/profiles/presets/{engine}",
+          "/profiles/{profile_id}",
+          "/profiles/{profile_id}/samples",
+          "/profiles/{profile_id}/avatar",
+          "/profiles/{profile_id}/export",
+          "/profiles/{profile_id}/channels",
+          "/profiles/{profile_id}/effects",
+          "/profiles/{profile_id}/compose"
+        ]
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/create_profile",
+      "type": "endpoint",
+      "data": {
+        "name": "create_profile",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 25,
+        "http_method": "POST",
+        "path": "/profiles",
+        "doc": "Create a new voice profile."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/list_profiles",
+      "type": "endpoint",
+      "data": {
+        "name": "list_profiles",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 39,
+        "http_method": "GET",
+        "path": "/profiles",
+        "doc": "List all voice profiles."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/import_profile",
+      "type": "endpoint",
+      "data": {
+        "name": "import_profile",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 45,
+        "http_method": "POST",
+        "path": "/profiles/import",
+        "doc": "Import a voice profile from a ZIP archive."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/list_preset_voices",
+      "type": "endpoint",
+      "data": {
+        "name": "list_preset_voices",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 74,
+        "http_method": "GET",
+        "path": "/profiles/presets/{engine}",
+        "doc": "List available preset voices for an engine (kokoro, qwen_custom_voice)."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/get_profile",
+      "type": "endpoint",
+      "data": {
+        "name": "get_profile",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 109,
+        "http_method": "GET",
+        "path": "/profiles/{profile_id}",
+        "doc": "Get a voice profile by ID."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/update_profile",
+      "type": "endpoint",
+      "data": {
+        "name": "update_profile",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 121,
+        "http_method": "PUT",
+        "path": "/profiles/{profile_id}",
+        "doc": "Update a voice profile."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/delete_profile",
+      "type": "endpoint",
+      "data": {
+        "name": "delete_profile",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 137,
+        "http_method": "DELETE",
+        "path": "/profiles/{profile_id}",
+        "doc": "Delete a voice profile."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/add_profile_sample",
+      "type": "endpoint",
+      "data": {
+        "name": "add_profile_sample",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 153,
+        "http_method": "POST",
+        "path": "/profiles/{profile_id}/samples",
+        "doc": "Add a sample to a voice profile."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/get_profile_samples",
+      "type": "endpoint",
+      "data": {
+        "name": "get_profile_samples",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 194,
+        "http_method": "GET",
+        "path": "/profiles/{profile_id}/samples",
+        "doc": "Get all samples for a profile."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/delete_profile_sample",
+      "type": "endpoint",
+      "data": {
+        "name": "delete_profile_sample",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 203,
+        "http_method": "DELETE",
+        "path": "/profiles/samples/{sample_id}",
+        "doc": "Delete a profile sample."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/update_profile_sample",
+      "type": "endpoint",
+      "data": {
+        "name": "update_profile_sample",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 215,
+        "http_method": "PUT",
+        "path": "/profiles/samples/{sample_id}",
+        "doc": "Update a profile sample's reference text."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/upload_profile_avatar",
+      "type": "endpoint",
+      "data": {
+        "name": "upload_profile_avatar",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 228,
+        "http_method": "POST",
+        "path": "/profiles/{profile_id}/avatar",
+        "doc": "Upload or update avatar image for a profile."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/get_profile_avatar",
+      "type": "endpoint",
+      "data": {
+        "name": "get_profile_avatar",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 249,
+        "http_method": "GET",
+        "path": "/profiles/{profile_id}/avatar",
+        "doc": "Get avatar image for a profile."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/delete_profile_avatar",
+      "type": "endpoint",
+      "data": {
+        "name": "delete_profile_avatar",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 269,
+        "http_method": "DELETE",
+        "path": "/profiles/{profile_id}/avatar",
+        "doc": "Delete avatar image for a profile."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/export_profile",
+      "type": "endpoint",
+      "data": {
+        "name": "export_profile",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 281,
+        "http_method": "GET",
+        "path": "/profiles/{profile_id}/export",
+        "doc": "Export a voice profile as a ZIP archive."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/get_profile_channels",
+      "type": "endpoint",
+      "data": {
+        "name": "get_profile_channels",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 310,
+        "http_method": "GET",
+        "path": "/profiles/{profile_id}/channels",
+        "doc": "Get list of channel IDs assigned to a profile."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/set_profile_channels",
+      "type": "endpoint",
+      "data": {
+        "name": "set_profile_channels",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 323,
+        "http_method": "PUT",
+        "path": "/profiles/{profile_id}/channels",
+        "doc": "Set which channels a profile is assigned to."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/update_profile_effects",
+      "type": "endpoint",
+      "data": {
+        "name": "update_profile_effects",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 337,
+        "http_method": "PUT",
+        "path": "/profiles/{profile_id}/effects",
+        "doc": "Set or clear the default effects chain for a voice profile."
+      }
+    },
+    {
+      "id": "backend/routes/profiles.py/compose_in_character",
+      "type": "endpoint",
+      "data": {
+        "name": "compose_in_character",
+        "category": "route",
+        "file": "backend/routes/profiles.py",
+        "line": 374,
+        "http_method": "POST",
+        "path": "/profiles/{profile_id}/compose",
+        "doc": "Produce a fresh utterance in the profile's character voice.",
+        "returns": "PersonalityTextResponse"
+      }
+    },
+    {
+      "id": "backend/utils/chunked_tts.py",
+      "type": "module",
+      "data": {
+        "name": "chunked_tts",
+        "category": "utility",
+        "responsibility": "Chunked TTS generation utilities - splits long text into sentence-boundary chunks, generates audio per-chunk, and concatenates with crossfade",
+        "key_constants": [
+          "DEFAULT_MAX_CHUNK_CHARS",
+          "_ABBREVIATIONS",
+          "_PARA_TAG_RE"
+        ],
+        "key_functions": [
+          "split_text_into_chunks",
+          "concatenate_audio_chunks",
+          "generate_chunked"
+        ]
+      }
+    },
+    {
+      "id": "backend/utils/chunked_tts.py/split_text_into_chunks",
+      "type": "function",
+      "data": {
+        "name": "split_text_into_chunks",
+        "category": "utility",
+        "file": "backend/utils/chunked_tts.py",
+        "line": 61,
+        "doc": "Split text at natural boundaries into chunks of at most max_chars. Priority: sentence-end \u2192 clause boundary \u2192 whitespace \u2192 hard cut.",
+        "parameters": [
+          "text: str",
+          "max_chars: int = DEFAULT_MAX_CHUNK_CHARS"
+        ],
+        "returns": "List[str]"
+      }
+    },
+    {
+      "id": "backend/utils/chunked_tts.py/_find_last_sentence_end",
+      "type": "function",
+      "data": {
+        "name": "_find_last_sentence_end",
+        "category": "utility",
+        "file": "backend/utils/chunked_tts.py",
+        "line": 107,
+        "doc": "Return the index of the last sentence-ending punctuation in text. Skips abbreviations and bracket tags.",
+        "parameters": [
+          "text: str"
+        ],
+        "returns": "int"
+      }
+    },
+    {
+      "id": "backend/utils/chunked_tts.py/_find_last_clause_boundary",
+      "type": "function",
+      "data": {
+        "name": "_find_last_clause_boundary",
+        "category": "utility",
+        "file": "backend/utils/chunked_tts.py",
+        "line": 142,
+        "doc": "Return the index of the last clause-boundary punctuation.",
+        "parameters": [
+          "text: str"
+        ],
+        "returns": "int"
+      }
+    },
+    {
+      "id": "backend/utils/chunked_tts.py/_inside_bracket_tag",
+      "type": "function",
+      "data": {
+        "name": "_inside_bracket_tag",
+        "category": "utility",
+        "file": "backend/utils/chunked_tts.py",
+        "line": 154,
+        "doc": "Return True if pos falls inside a [...] tag.",
+        "parameters": [
+          "text: str",
+          "pos: int"
+        ],
+        "returns": "bool"
+      }
+    },
+    {
+      "id": "backend/utils/chunked_tts.py/_safe_hard_cut",
+      "type": "function",
+      "data": {
+        "name": "_safe_hard_cut",
+        "category": "utility",
+        "file": "backend/utils/chunked_tts.py",
+        "line": 162,
+        "doc": "Find a hard-cut position that doesn't split a [tag].",
+        "parameters": [
+          "segment: str",
+          "max_chars: int"
+        ],
+        "returns": "int"
+      }
+    },
+    {
+      "id": "backend/utils/chunked_tts.py/concatenate_audio_chunks",
+      "type": "function",
+      "data": {
+        "name": "concatenate_audio_chunks",
+        "category": "utility",
+        "file": "backend/utils/chunked_tts.py",
+        "line": 172,
+        "doc": "Concatenate audio arrays with a short crossfade to eliminate clicks.",
+        "parameters": [
+          "chunks: List[np.ndarray]",
+          "sample_rate: int",
+          "crossfade_ms: int = 50"
+        ],
+        "returns": "np.ndarray"
+      }
+    },
+    {
+      "id": "backend/utils/chunked_tts.py/generate_chunked",
+      "type": "function",
+      "data": {
+        "name": "generate_chunked",
+        "category": "utility",
+        "file": "backend/utils/chunked_tts.py",
+        "line": 204,
+        "doc": "Generate audio with automatic chunking for long text. Short text uses single-shot fast path. Long text splits at sentence boundaries, generates per-chunk, and concatenates with crossfade.",
+        "parameters": [
+          "backend",
+          "text",
+          "voice_prompt",
+          "language",
+          "seed",
+          "instruct",
+          "max_chunk_chars",
+          "crossfade_ms",
+          "trim_fn"
+        ],
+        "returns": "Tuple[np.ndarray, int]"
+      }
+    },
+    {
+      "id": "backend/utils/dac_shim.py",
+      "type": "module",
+      "data": {
+        "name": "dac_shim",
+        "category": "utility",
+        "responsibility": "Minimal shim for descript-audio-codec (DAC) - provides Snake1d implementation to avoid audiotools dependency chain for TADA",
+        "key_classes": [
+          "Snake1d"
+        ],
+        "key_functions": [
+          "install_dac_shim"
+        ]
+      }
+    },
+    {
+      "id": "backend/utils/dac_shim.py/snake",
+      "type": "function",
+      "data": {
+        "name": "snake",
+        "category": "utility",
+        "file": "backend/utils/dac_shim.py",
+        "line": 29,
+        "doc": "Snake activation function (MIT-licensed from descript-audio-codec). Note: TorchScript omitted to avoid inspect.getsource() failure in PyInstaller.",
+        "parameters": [
+          "x: torch.Tensor",
+          "alpha: torch.Tensor"
+        ],
+        "returns": "torch.Tensor"
+      }
+    },
+    {
+      "id": "backend/utils/dac_shim.py/Snake1d",
+      "type": "class",
+      "data": {
+        "name": "Snake1d",
+        "category": "utility",
+        "file": "backend/utils/dac_shim.py",
+        "line": 37,
+        "doc": "Snake1d activation layer from DAC. Uses learned alpha parameter.",
+        "fields": [
+          "alpha: nn.Parameter"
+        ]
+      }
+    },
+    {
+      "id": "backend/utils/dac_shim.py/install_dac_shim",
+      "type": "function",
+      "data": {
+        "name": "install_dac_shim",
+        "category": "utility",
+        "file": "backend/utils/dac_shim.py",
+        "line": 48,
+        "doc": "Register fake dac package modules in sys.modules. Only installs if real descript-audio-codec is not installed.",
+        "parameters": []
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "backend/routes/generations.py",
+      "to": "backend/services/generation.py",
+      "label": "orchestrates",
+      "type": "calls"
+    },
+    {
+      "from": "backend/routes/generations.py",
+      "to": "backend/services/profiles.py",
+      "label": "resolves profiles",
+      "type": "calls"
+    },
+    {
+      "from": "backend/routes/generations.py",
+      "to": "backend/backends/__init__.py",
+      "label": "factory",
+      "type": "calls"
+    },
+    {
+      "from": "backend/routes/generations.py",
+      "to": "backend/services/history.py",
+      "label": "creates/updates generations",
+      "type": "calls"
+    },
+    {
+      "from": "backend/routes/generations.py",
+      "to": "backend/utils/effects.py",
+      "label": "applies effects chain",
+      "type": "calls"
+    },
+    {
+      "from": "backend/routes/generations.py",
+      "to": "backend/utils/chunked_tts.py",
+      "label": "chunked generation",
+      "type": "calls"
+    },
+    {
+      "from": "backend/routes/generations.py",
+      "to": "backend/utils/audio.py",
+      "label": "audio utilities",
+      "type": "calls"
+    },
+    {
+      "from": "backend/routes/generations.py",
+      "to": "backend/mcp_server.py",
+      "label": "publishes speak-end events",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/generation.py",
+      "to": "backend/backends/__init__.py",
+      "label": "gets backend",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/generation.py",
+      "to": "backend/backends/base.py",
+      "label": "uses utilities",
+      "type": "depends-on"
+    },
+    {
+      "from": "backend/services/generation.py",
+      "to": "backend/services/profiles.py",
+      "label": "creates voice prompts",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/generation.py",
+      "to": "backend/services/history.py",
+      "label": "updates status",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/generation.py",
+      "to": "backend/services/versions.py",
+      "label": "creates versions",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/generation.py",
+      "to": "backend/utils/chunked_tts.py",
+      "label": "generates audio",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/generation.py",
+      "to": "backend/utils/audio.py",
+      "label": "normalizes/saves audio",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/generation.py",
+      "to": "backend/utils/effects.py",
+      "label": "applies effects",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/generation.py",
+      "to": "backend/config.py",
+      "label": "paths",
+      "type": "uses"
+    },
+    {
+      "from": "backend/services/profiles.py",
+      "to": "backend/backends/__init__.py",
+      "label": "gets engine backend",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/profiles.py",
+      "to": "backend/database.py",
+      "label": "queries profiles/samples",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/profiles.py",
+      "to": "backend/models.py",
+      "label": "uses pydantic models",
+      "type": "uses"
+    },
+    {
+      "from": "backend/services/profiles.py",
+      "to": "backend/utils/audio.py",
+      "label": "saves audio",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/profiles.py",
+      "to": "backend/utils/cache.py",
+      "label": "caches prompts",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/profiles.py",
+      "to": "backend/utils/images.py",
+      "label": "processes avatars",
+      "type": "calls"
+    },
+    {
+      "from": "backend/services/profiles.py",
+      "to": "backend/config.py",
+      "label": "paths",
+      "type": "uses"
+    },
+    {
+      "from": "backend/backends/__init__.py",
+      "to": "backend/backends/base.py",
+      "label": "uses utilities",
+      "type": "depends-on"
+    },
+    {
+      "from": "backend/backends/__init__.py",
+      "to": "backend/backends/fish_speech_backend.py",
+      "label": "registers fish_speech",
+      "type": "imports"
+    },
+    {
+      "from": "backend/backends/__init__.py",
+      "to": "backend/backends/hume_backend.py",
+      "label": "registers tada",
+      "type": "imports"
+    },
+    {
+      "from": "backend/backends/__init__.py",
+      "to": "backend/utils/hf_offline_patch.py",
+      "label": "installs patch at import",
+      "type": "imports"
+    },
+    {
+      "from": "backend/backends/__init__.py",
+      "to": "backend/utils/dac_shim.py",
+      "label": "installs shim at import",
+      "type": "imports"
+    },
+    {
+      "from": "backend/backends/fish_speech_backend.py",
+      "to": "backend/backends/base.py",
+      "label": "is_model_cached, model_load_progress",
+      "type": "imports"
+    },
+    {
+      "from": "backend/backends/fish_speech_backend.py",
+      "to": "backend/utils/cache.py",
+      "label": "caches prompts",
+      "type": "calls"
+    },
+    {
+      "from": "backend/backends/hume_backend.py",
+      "to": "backend/backends/base.py",
+      "label": "shared utilities",
+      "type": "imports"
+    },
+    {
+      "from": "backend/backends/hume_backend.py",
+      "to": "backend/utils/dac_shim.py",
+      "label": "installs dac shim",
+      "type": "calls"
+    },
+    {
+      "from": "backend/backends/hume_backend.py",
+      "to": "backend/utils/cache.py",
+      "label": "caches prompts",
+      "type": "calls"
+    },
+    {
+      "id": "edge_app_router",
+      "from": "app/App.tsx:MainApp",
+      "to": "app/router.tsx:router",
+      "label": "renders",
+      "file": "app/src/App.tsx",
+      "line": 305
+    },
+    {
+      "id": "edge_generation_form_mutation",
+      "from": "app/lib/hooks/useGenerationForm.ts:useGenerationForm",
+      "to": "app/lib/hooks/useGeneration.ts:useGeneration",
+      "label": "uses",
+      "file": "app/src/lib/hooks/useGenerationForm.ts",
+      "line": 47
+    },
+    {
+      "id": "edge_generation_store",
+      "from": "app/lib/hooks/useGenerationForm.ts:useGenerationForm",
+      "to": "app/stores/generationStore.ts:useGenerationStore",
+      "label": "reads/writes",
+      "file": "app/src/lib/hooks/useGenerationForm.ts",
+      "line": 48
+    },
+    {
+      "id": "edge_generation_api_client",
+      "from": "app/lib/hooks/useGeneration.ts:useGeneration",
+      "to": "app/lib/api/client.ts:ApiClient",
+      "label": "calls apiClient.generateSpeech",
+      "file": "app/src/lib/hooks/useGeneration.ts",
+      "line": 9
+    },
+    {
+      "id": "edge_form_store_sync",
+      "from": "app/lib/hooks/useGenerationForm.ts:useGenerationForm",
+      "to": "app/stores/uiStore",
+      "label": "reads selectedEngine",
+      "file": "app/src/lib/hooks/useGenerationForm.ts",
+      "line": 53
+    },
+    {
+      "id": "edge_floating_form",
+      "from": "app/components/Generation/FloatingGenerateBox.tsx:FloatingGenerateBox",
+      "to": "app/lib/hooks/useGenerationForm.ts:useGenerationForm",
+      "label": "uses hook",
+      "file": "app/src/components/Generation/FloatingGenerateBox.tsx",
+      "line": 81
+    },
+    {
+      "id": "edge_floating_engine_selector",
+      "from": "app/components/Generation/FloatingGenerateBox.tsx:FloatingGenerateBox",
+      "to": "app/components/Generation/EngineModelSelector.tsx:EngineModelSelector",
+      "label": "renders",
+      "file": "app/src/components/Generation/FloatingGenerateBox.tsx",
+      "line": 600
+    },
+    {
+      "id": "edge_floating_compose_mutation",
+      "from": "app/components/Generation/FloatingGenerateBox.tsx:FloatingGenerateBox",
+      "to": "app/lib/api/client.ts:ApiClient",
+      "label": "calls apiClient.composeWithPersonality",
+      "file": "app/src/components/Generation/FloatingGenerateBox.tsx",
+      "line": 61
+    },
+    {
+      "id": "edge_floating_ui_store",
+      "from": "app/components/Generation/FloatingGenerateBox.tsx:FloatingGenerateBox",
+      "to": "app/stores/uiStore",
+      "label": "reads/writes selectedProfileId, selectedEngine",
+      "file": "app/src/components/Generation/FloatingGenerateBox.tsx",
+      "lines": [
+        40,
+        42
+      ]
+    },
+    {
+      "id": "edge_floating_gen_store",
+      "from": "app/components/Generation/FloatingGenerateBox.tsx:FloatingGenerateBox",
+      "to": "app/stores/generationStore.ts:useGenerationStore",
+      "label": "uses addPendingStoryAdd",
+      "file": "app/src/components/Generation/FloatingGenerateBox.tsx",
+      "line": 55
+    },
+    {
+      "id": "edge_engine_selector_api_types",
+      "from": "app/components/Generation/EngineModelSelector.tsx:EngineModelSelector",
+      "to": "app/lib/api/types",
+      "label": "imports types",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 11
+    },
+    {
+      "id": "edge_api_client_server_store",
+      "from": "app/lib/api/client.ts:ApiClient",
+      "to": "app/stores/serverStore",
+      "label": "reads serverUrl",
+      "file": "app/src/lib/api/client.ts",
+      "line": 76
+    },
+    {
+      "id": "edge_app_platform",
+      "from": "app/App.tsx:MainApp",
+      "to": "app/platform/PlatformContext",
+      "label": "uses PlatformContext",
+      "file": "app/src/App.tsx",
+      "line": 92
+    },
+    {
+      "id": "edge_app_lifecycle_server_store",
+      "from": "app/App.tsx:MainApp",
+      "to": "app/stores/serverStore",
+      "label": "reads/writes serverUrl, mode, customModelsDir, keepServerRunningOnClose",
+      "file": "app/src/App.tsx",
+      "lines": [
+        108,
+        137,
+        139,
+        140,
+        168,
+        169,
+        177
+      ]
+    },
+    {
+      "id": "edge_app_lifecycle_log_store",
+      "from": "app/App.tsx:MainApp",
+      "to": "app/stores/logStore",
+      "label": "subscribes to server logs",
+      "file": "app/src/App.tsx",
+      "line": 129
+    },
+    {
+      "id": "edge_app_api_client",
+      "from": "app/App.tsx:MainApp",
+      "to": "app/lib/api/client.ts:ApiClient",
+      "label": "calls getHealth",
+      "file": "app/src/App.tsx",
+      "line": 204
+    },
+    {
+      "id": "edge_root_layout_hooks",
+      "from": "app/router.tsx:RootLayout",
+      "to": "app/lib/hooks/useGenerationProgress",
+      "label": "uses hook",
+      "file": "app/src/router.tsx",
+      "line": 40
+    },
+    {
+      "id": "edge_root_layout_restore_tasks",
+      "from": "app/router.tsx:RootLayout",
+      "to": "app/lib/hooks/useRestoreActiveTasks",
+      "label": "uses hook",
+      "file": "app/src/router.tsx",
+      "line": 37
+    },
+    {
+      "id": "edge_engine_form_compat",
+      "from": "app/components/Generation/EngineModelSelector.tsx:isProfileCompatibleWithEngine",
+      "to": "app/lib/api/types:VoiceProfileResponse",
+      "label": "typed on profile",
+      "file": "app/src/components/Generation/EngineModelSelector.tsx",
+      "line": 167
+    },
+    {
+      "id": "edge_form_gen_request",
+      "from": "app/lib/hooks/useGenerationForm.ts:generationSchema",
+      "to": "app/lib/api/types:GenerationRequest",
+      "label": "derived type",
+      "file": "app/src/lib/hooks/useGenerationForm.ts",
+      "line": 37
+    },
+    {
+      "source": "backend/services/task_queue.py",
+      "target": "backend/database.py",
+      "type": "import",
+      "label": "imports"
+    },
+    {
+      "source": "backend/services/task_queue.py",
+      "target": "backend/services/history.py",
+      "type": "import",
+      "label": "imports"
+    },
+    {
+      "source": "backend/services/tts.py",
+      "target": "backend/backends/__init__.py",
+      "type": "import",
+      "label": "imports TTSBackend"
+    },
+    {
+      "source": "backend/services/transcribe.py",
+      "target": "backend/backends/__init__.py",
+      "type": "import",
+      "label": "imports STTBackend"
+    },
+    {
+      "source": "backend/services/history.py",
+      "target": "backend/models.py",
+      "type": "import",
+      "label": "imports models"
+    },
+    {
+      "source": "backend/services/history.py",
+      "target": "backend/database.py",
+      "type": "import",
+      "label": "imports DB models"
+    },
+    {
+      "source": "backend/services/history.py",
+      "target": "backend/config.py",
+      "type": "import",
+      "label": "imports config"
+    },
+    {
+      "source": "backend/services/history.py",
+      "target": "backend/services/versions.py",
+      "type": "import",
+      "label": "calls delete_versions_for_generation"
+    },
+    {
+      "source": "backend/routes/health.py",
+      "target": "backend/services/tts.py",
+      "type": "import",
+      "label": "imports tts module"
+    },
+    {
+      "source": "backend/routes/health.py",
+      "target": "backend/config.py",
+      "type": "import",
+      "label": "imports config"
+    },
+    {
+      "source": "backend/routes/health.py",
+      "target": "backend/models.py",
+      "type": "import",
+      "label": "imports models"
+    },
+    {
+      "source": "backend/routes/health.py",
+      "target": "backend/database.py",
+      "type": "import",
+      "label": "imports get_db"
+    },
+    {
+      "source": "backend/routes/health.py",
+      "target": "backend/utils/platform_detect.py",
+      "type": "import",
+      "label": "imports get_backend_type"
+    },
+    {
+      "source": "backend/routes/health.py",
+      "target": "backend/backends/base.py",
+      "type": "import",
+      "label": "imports check_cuda_compatibility"
+    },
+    {
+      "source": "backend/routes/health.py",
+      "target": "backend/backends/__init__.py",
+      "type": "import",
+      "label": "imports get_model_config"
+    },
+    {
+      "source": "backend/routes/health.py",
+      "target": "backend/server.py",
+      "type": "import",
+      "label": "imports disable_watchdog"
+    },
+    {
+      "source": "backend/routes/health.py",
+      "target": "backend/__init__.py",
+      "type": "import",
+      "label": "imports __version__"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/config.py",
+      "type": "import",
+      "label": "imports config"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/models.py",
+      "type": "import",
+      "label": "imports models"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/app.py",
+      "type": "import",
+      "label": "imports safe_content_disposition"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/database.py",
+      "type": "import",
+      "label": "imports DB models"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/services/profiles.py",
+      "type": "import",
+      "label": "imports profiles service"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/services/channels.py",
+      "type": "import",
+      "label": "imports channels service"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/services/export_import.py",
+      "type": "import",
+      "label": "imports export_import service"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/services/personality.py",
+      "type": "import",
+      "label": "imports personality service"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/backends/kokoro_backend.py",
+      "type": "import",
+      "label": "imports KOKORO_VOICES"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/backends/qwen_custom_voice_backend.py",
+      "type": "import",
+      "label": "imports QWEN_CUSTOM_VOICES"
+    },
+    {
+      "source": "backend/routes/profiles.py",
+      "target": "backend/utils/effects.py",
+      "type": "import",
+      "label": "imports validate_effects_chain"
+    },
+    {
+      "source": "backend/utils/chunked_tts.py",
+      "target": "backend/utils/chunked_tts.py/split_text_into_chunks",
+      "type": "contains",
+      "label": "contains"
+    },
+    {
+      "source": "backend/utils/chunked_tts.py",
+      "target": "backend/utils/chunked_tts.py/concatenate_audio_chunks",
+      "type": "contains",
+      "label": "contains"
+    },
+    {
+      "source": "backend/utils/chunked_tts.py",
+      "target": "backend/utils/chunked_tts.py/generate_chunked",
+      "type": "contains",
+      "label": "contains"
+    },
+    {
+      "source": "backend/utils/dac_shim.py",
+      "target": "backend/utils/dac_shim.py/Snake1d",
+      "type": "contains",
+      "label": "contains"
+    },
+    {
+      "source": "backend/utils/dac_shim.py",
+      "target": "backend/utils/dac_shim.py/install_dac_shim",
+      "type": "contains",
+      "label": "contains"
+    },
+    {
+      "source": "backend/services/task_queue.py/init_queue",
+      "target": "backend/services/task_queue.py/create_background_task",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/services/task_queue.py/init_queue",
+      "target": "backend/services/task_queue.py/_generation_worker",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/services/task_queue.py/_generation_worker",
+      "target": "backend/services/task_queue.py/_force_fail_if_active",
+      "type": "calls",
+      "label": "calls on error"
+    },
+    {
+      "source": "backend/services/task_queue.py/enqueue_generation",
+      "target": "backend/services/task_queue.py/_generation_worker",
+      "type": "enqueues",
+      "label": "enqueues job to"
+    },
+    {
+      "source": "backend/routes/health.py/health",
+      "target": "backend/services/tts.py/get_tts_model",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/create_profile",
+      "target": "backend/services/profiles.py/create_profile",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/list_profiles",
+      "target": "backend/services/profiles.py/list_profiles",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/get_profile",
+      "target": "backend/services/profiles.py/get_profile",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/update_profile",
+      "target": "backend/services/profiles.py/update_profile",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/delete_profile",
+      "target": "backend/services/profiles.py/delete_profile",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/add_profile_sample",
+      "target": "backend/services/profiles.py/add_profile_sample",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/get_profile_samples",
+      "target": "backend/services/profiles.py/get_profile_samples",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/delete_profile_sample",
+      "target": "backend/services/profiles.py/delete_profile_sample",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/update_profile_sample",
+      "target": "backend/services/profiles.py/update_profile_sample",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/upload_profile_avatar",
+      "target": "backend/services/profiles.py/upload_avatar",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/get_profile_avatar",
+      "target": "backend/services/profiles.py/get_profile",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/delete_profile_avatar",
+      "target": "backend/services/profiles.py/delete_avatar",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/export_profile",
+      "target": "backend/services/profiles.py/get_profile",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/export_profile",
+      "target": "backend/services/export_import.py/export_profile_to_zip",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/get_profile_channels",
+      "target": "backend/services/channels.py/get_profile_channels",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/set_profile_channels",
+      "target": "backend/services/channels.py/set_profile_channels",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/routes/profiles.py/compose_in_character",
+      "target": "backend/services/personality.py/compose_as_profile",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/utils/chunked_tts.py/generate_chunked",
+      "target": "backend/utils/chunked_tts.py/split_text_into_chunks",
+      "type": "calls",
+      "label": "calls"
+    },
+    {
+      "source": "backend/utils/chunked_tts.py/generate_chunked",
+      "target": "backend/utils/chunked_tts.py/concatenate_audio_chunks",
+      "type": "calls",
+      "label": "calls"
     }
   ],
   "layers": [
     {
-      "id": "layer:frontend-ui",
-      "name": "Frontend UI",
-      "description": "React components and UI logic for the desktop and web apps.",
+      "id": "layer:desktop-shell",
+      "name": "Desktop Shell Layer",
+      "description": "Tauri native desktop integration \u2014 window management, system tray, binary packaging, Rust backend entry point",
       "nodeIds": [
-        "file:/Volumes/WD500/dev/voicebox/app/src/App.tsx",
-        "file:/Volumes/WD500/dev/voicebox/app/package.json"
+        "file:tauri/src-tauri/src/main.rs"
       ]
     },
     {
-      "id": "layer:backend-api",
-      "name": "Backend API",
-      "description": "FastAPI routes, services, and TTS engine implementations.",
+      "id": "layer:ui",
+      "name": "UI Layer",
+      "description": "React components \u2014 page layouts, UI widgets, routing, and presentation logic",
       "nodeIds": [
-        "file:/Volumes/WD500/dev/voicebox/backend/app.py",
-        "file:/Volumes/WD500/dev/voicebox/backend/routes/generations.py",
-        "file:/Volumes/WD500/dev/voicebox/backend/backends/base.py",
-        "file:/Volumes/WD500/dev/voicebox/backend/pyproject.toml"
+        "file:app/src/App.tsx",
+        "file:app/src/router.tsx"
       ]
     },
     {
-      "id": "layer:desktop-platform",
-      "name": "Desktop Platform",
-      "description": "Tauri/Rust desktop app wrapper with system integration.",
+      "id": "layer:frontend-service",
+      "name": "Frontend Service Layer",
+      "description": "API client and data-fetching utilities for the React app",
       "nodeIds": [
-        "file:/Volumes/WD500/dev/voicebox/tauri/src-tauri/src/main.rs"
+        "file:app/src/lib/api/client.ts"
       ]
     },
     {
-      "id": "layer:contributing",
-      "name": "Contributing & Release",
-      "description": "Documentation and guides for development and release processes.",
+      "id": "layer:api",
+      "name": "API Layer",
+      "description": "FastAPI routes \u2014 HTTP endpoint definitions, request validation, and response formatting for TTS generation",
       "nodeIds": [
-        "file:/Volumes/WD500/dev/voicebox/CONTRIBUTING.md",
-        "file:/Volumes/WD500/dev/voicebox/CHANGELOG.md",
-        "file:/Volumes/WD500/dev/voicebox/.agents/skills/release-bump/SKILL.md",
-        "file:/Volumes/WD500/dev/voicebox/.agents/skills/draft-release-notes/SKILL.md",
-        "file:/Volumes/WD500/dev/voicebox/.agents/skills/triage-prs/SKILL.md"
+        "file:backend/routes/generations.py"
       ]
     },
     {
-      "id": "layer:developer-guides",
-      "name": "Developer Guides",
-      "description": "Step-by-step guides for adding features and contributing to the project.",
+      "id": "layer:business-logic",
+      "name": "Business Logic Layer",
+      "description": "Service orchestration \u2014 generation pipeline, profile management, and cross-backend coordination",
       "nodeIds": [
-        "file:/Volumes/WD500/dev/voicebox/.agents/skills/add-tts-engine/SKILL.md"
+        "file:backend/services/generation.py",
+        "file:backend/services/profiles.py"
+      ]
+    },
+    {
+      "id": "layer:ml-tts",
+      "name": "ML/TTS Engine Layer",
+      "description": "TTS backend abstraction and engine implementations \u2014 registry pattern for multiple TTS providers",
+      "nodeIds": [
+        "file:backend/backends/__init__.py"
       ]
     }
   ],
   "tour": [
     {
       "order": 1,
-      "title": "Start at the Voicebox App Entry",
-      "description": "This step explains how the frontend boots and mounts, handling server lifecycle and loading screens.",
+      "title": "React Form Hook",
+      "description": "Entry point for user input. The useGenerationForm hook validates engine, text, and profile selection, then calls apiClient.generateSpeech(). It manages both form state and async generation status, centralizing validation logic so UI components stay purely presentational.",
       "nodeIds": [
-        "file:/Volumes/WD500/dev/voicebox/app/src/App.tsx",
-        "file:/Volumes/WD500/dev/voicebox/app/package.json"
-      ]
+        "file:app/src/lib/hooks/useGenerationForm.ts"
+      ],
+      "languageLesson": "React custom hooks encapsulate reusable stateful logic. This pattern keeps UI components declarative while business rules live in reusable, testable hooks."
     },
     {
       "order": 2,
-      "title": "Explore the Backend TTS Architecture",
-      "description": "Delve into the FastAPI backend, TTS generation endpoints, and the shared base utilities for multi-engine support.",
+      "title": "API Client",
+      "description": "The ApiClient provides 60+ typed methods wrapping backend endpoints. generateSpeech() sends the POST /generate request and handles all network serialization and response parsing. It is the sole boundary between the React frontend and the FastAPI backend.",
       "nodeIds": [
-        "file:/Volumes/WD500/dev/voicebox/backend/app.py",
-        "file:/Volumes/WD500/dev/voicebox/backend/routes/generations.py",
-        "file:/Volumes/WD500/dev/voicebox/backend/backends/base.py"
-      ]
+        "file:app/src/lib/api/client.ts"
+      ],
+      "languageLesson": "Centralized API clients use a typed fetch wrapper to ensure the frontend and backend stay in sync. Request/response types mirror Pydantic models on the server, giving compile-time safety end-to-end."
     },
     {
       "order": 3,
-      "title": "Understand the Desktop Platform Integration",
-      "description": "See how the Rust-based Tauri app manages the Python server, audio capture, and system integration.",
+      "title": "FastAPI Route",
+      "description": "POST /generate receives the TTS request. It validates the voice profile exists and enqueues a generation task. This layer handles HTTP concerns: request parsing, validation, and response formatting. The actual work is delegated to the service layer.",
       "nodeIds": [
-        "file:/Volumes/WD500/dev/voicebox/tauri/src-tauri/src/main.rs"
-      ]
+        "file:backend/routes/generations.py"
+      ],
+      "languageLesson": "FastAPI uses Python decorators (@router.post) to define routes. Pydantic models auto-validate request bodies and generate OpenAPI schemas, giving free documentation and type safety."
     },
     {
       "order": 4,
-      "title": "Contribute and Release",
-      "description": "Learn the development workflow, contribution guidelines, and how to manage releases using the project's custom skills.",
+      "title": "Generation Service",
+      "description": "The orchestration layer. run_generation() chains: load the TTS backend, create a voice prompt from the profile, generate speech, and save audio to disk. This coordinates multiple subsystems without knowing the details of any single one.",
       "nodeIds": [
-        "file:/Volumes/WD500/dev/voicebox/CONTRIBUTING.md",
-        "file:/Volumes/WD500/dev/voicebox/.agents/skills/release-bump/SKILL.md",
-        "file:/Volumes/WD500/dev/voicebox/.agents/skills/draft-release-notes/SKILL.md",
-        "file:/Volumes/WD500/dev/voicebox/.agents/skills/triage-prs/SKILL.md"
-      ]
+        "file:backend/services/generation.py"
+      ],
+      "languageLesson": "The orchestrator pattern sequences multiple components, keeping business logic modular and testable. Each step is a clean function call; swapping an engine only changes the backend, not the service."
+    },
+    {
+      "order": 5,
+      "title": "Profile Service",
+      "description": "create_voice_prompt_for_profile() loads audio samples associated with a voice profile and formats them into a voice prompt dict. The prompt format is engine-specific \u2014 this service adapts profile data into whatever format the TTS backend expects.",
+      "nodeIds": [
+        "file:backend/services/profiles.py"
+      ],
+      "languageLesson": "Voice prompts are structured dicts mapping audio paths to metadata. This abstraction lets the same interface work across different TTS engines, each with their own prompt format."
+    },
+    {
+      "order": 6,
+      "title": "Backend Factory",
+      "description": "Engine factory \u2014 get_tts_backend_for_engine('fish_speech') returns the appropriate TTSBackend implementation. It defines the TTSBackend protocol that all engine implementations must satisfy, decoupling the orchestration layer from specific model APIs.",
+      "nodeIds": [
+        "file:backend/backends/__init__.py"
+      ],
+      "languageLesson": "The factory pattern eliminates if/else chains for engine selection. New engines are added by implementing TTSBackend without touching existing code \u2014 the open/closed principle in practice."
+    },
+    {
+      "order": 7,
+      "title": "Fish Speech Backend",
+      "description": "FishAudioTTSBackend implements TTSBackend using mlx-audio's Model.generate() with voice cloning. This is the actual ML inference layer \u2014 it takes text plus a voice prompt and returns raw audio. Voice cloning works by conditioning the model on short reference audio samples captured by the profile service.",
+      "nodeIds": [
+        "file:backend/backends/fish_speech_backend.py"
+      ],
+      "languageLesson": "The backend uses Apple's MLX framework for hardware-accelerated inference on Apple Silicon. The model is cached in memory between requests for low-latency generation."
+    },
+    {
+      "order": 8,
+      "title": "Chunked TTS for Long-Form Audio",
+      "description": "For long texts, generate_chunked() splits text at sentence boundaries, generates audio per chunk, then crossfades the chunks together to produce seamless output. Not every request goes through this path \u2014 only texts exceeding a length threshold. Crossfading prevents audio artifacts at chunk boundaries.",
+      "nodeIds": [
+        "file:backend/utils/chunked_tts.py"
+      ],
+      "languageLesson": "Sentence-boundary splitting respects natural prosodic units, preventing awkward mid-sentence cuts. Crossfade is a linear gain ramp at chunk edges \u2014 a simple but effective audio signal processing technique."
     }
   ]
 }

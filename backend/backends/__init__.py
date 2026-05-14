@@ -11,6 +11,10 @@ and a model config registry that eliminates per-engine dispatch maps.
 # unconditional HuggingFace metadata call that otherwise raises on
 # HF_HUB_OFFLINE=1 and on network failures.
 from ..utils import hf_offline_patch  # noqa: F401
+# Install dac shim before any backend imports descript-audio-codec.
+# dac_shim registers fake dac.* modules to satisfy TADA imports,
+# preventing the real dac package from being loaded.
+from ..utils import dac_shim  # noqa: F401
 
 import threading
 from dataclasses import dataclass, field

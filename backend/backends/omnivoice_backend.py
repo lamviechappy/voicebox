@@ -18,11 +18,12 @@ import soundfile as sf
 import torch
 
 from . import TTSBackend
-from .base import is_model_cached, model_load_progress, get_torch_device
+from .base import is_model_cached, model_load_progress, get_torch_device, empty_device_cache, run_with_timeout, manual_seed, manual_seed
 from ..utils.cache import get_cache_key, get_cached_voice_prompt, cache_voice_prompt
 from ..utils.hf_offline_patch import patch_huggingface_hub_offline, force_offline_if_cached
 
 logger = logging.getLogger(__name__)
+
 
 # Model repo - use original k2-fsa/OmniVoice which has full PyTorch support
 MODEL_ID = "k2-fsa/OmniVoice"
@@ -63,39 +64,39 @@ class OmniVoiceBackend:
         await asyncio.to_thread(self._load_model_sync)
 
     def _load_model_sync(self) -> None:
-        """Synchronous model loading."""
+        """Synchronous model loading with 120s timeout."""
         is_cached = self._is_model_cached()
         model_name = "omnivoice"
 
-        with model_load_progress(model_name, is_cached):
-            from omnivoice.models.omnivoice import OmniVoice
+        def _load():
+            with model_load_progress(model_name, is_cached):
+                from omnivoice.models.omnivoice import OmniVoice
 
-            logger.info("Loading OmniVoice model...")
+                logger.info("Loading OmniVoice model...")
 
-            device = self.device
+                device = self.device
 
-            with force_offline_if_cached(is_cached, model_name):
-                self.model = OmniVoice.from_pretrained(
-                    MODEL_ID,
-                    device_map=device,
-                    torch_dtype=torch.bfloat16,
-                    trust_remote_code=True,
-                )
-                self.model.eval()
+                with force_offline_if_cached(is_cached, model_name):
+                    self.model = OmniVoice.from_pretrained(
+                        MODEL_ID,
+                        device_map=device,
+                        torch_dtype=torch.bfloat16,
+                        trust_remote_code=True,
+                    )
+                    self.model.eval()
 
-        logger.info("OmniVoice model loaded successfully on %s", device)
+            logger.info("OmniVoice model loaded successfully on %s", device)
+
+        run_with_timeout(_load, timeout_seconds=120, name=model_name)
 
     def unload_model(self) -> None:
         """Unload model to free memory."""
         if self.model is not None:
+            device = self._device  # capture before clearing
             del self.model
             self.model = None
-            if self.device:
-                if self.device.type == "mps":
-                    torch.mps.empty_cache()
-                elif self.device.type == "cuda":
-                    torch.cuda.empty_cache()
-            self.device = None
+            self._device = None
+            empty_device_cache(device)
             logger.info("OmniVoice model unloaded")
 
     async def create_voice_prompt(
@@ -236,9 +237,7 @@ class OmniVoiceBackend:
 
             # Set seed if provided
             if seed is not None:
-                torch.manual_seed(seed)
-                if torch.cuda.is_available():
-                    torch.cuda.manual_seed(seed)
+                manual_seed(seed, self.device)
 
             # OmniVoice accepts ISO 639-1 codes directly (en, zh, ja, etc.)
             # No mapping needed - just pass the code

@@ -12,7 +12,6 @@ avoid the entire audiotools dependency chain.
 
 If the real DAC package is installed, this module is never used —
 Python's import system will find the site-packages version first.
-Install this shim only when descript-audio-codec is NOT installed.
 """
 
 import sys
@@ -93,3 +92,7 @@ def install_dac_shim() -> None:
     sys.modules["dac.nn.layers"] = dac_nn_layers
     sys.modules["dac.model"] = dac_model
     sys.modules["dac.model.dac"] = dac_model_dac
+
+
+# Install the shim immediately when this module is imported.
+install_dac_shim()

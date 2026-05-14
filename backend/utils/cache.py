@@ -5,6 +5,7 @@ Voice prompt caching utilities.
 import hashlib
 import logging
 import torch
+import numpy as np
 from pathlib import Path
 from typing import Optional, Union, Dict, Any
 
@@ -16,6 +17,30 @@ logger = logging.getLogger(__name__)
 def _get_cache_dir() -> Path:
     """Get cache directory from config."""
     return config.get_cache_dir()
+
+
+def _sanitize_for_pickle(obj: Any) -> Any:
+    """
+    Recursively convert numpy arrays and types to plain Python for safe
+    torch.save/torch.load with weights_only=True.
+
+    This ensures cached voice prompt dicts stored by one backend (e.g. MLX,
+    which natively uses numpy) can be safely loaded by another backend
+    (e.g. Kokoro) without numpy scalars leaking into string fields.
+    """
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, dict):
+        return {k: _sanitize_for_pickle(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_sanitize_for_pickle(item) for item in obj]
+    return obj
 
 
 # In-memory cache - can store dict (voice prompt) or tensor (legacy)
@@ -65,6 +90,9 @@ def get_cached_voice_prompt(
     if cache_file.exists():
         try:
             prompt = torch.load(cache_file, weights_only=True)
+            # Sanitize after load: convert any numpy types left by older cache
+            # files or mixed backends to plain Python types
+            prompt = _sanitize_for_pickle(prompt)
             _memory_cache[cache_key] = prompt
             return prompt
         except Exception:
@@ -88,9 +116,12 @@ def cache_voice_prompt(
     # Store in memory
     _memory_cache[cache_key] = voice_prompt
 
+    # Sanitize before saving to disk so numpy types never reach torch.save
+    disk_prompt = _sanitize_for_pickle(voice_prompt)
+
     # Store on disk (torch.save can handle both dicts and tensors)
     cache_file = _get_cache_dir() / f"{cache_key}.prompt"
-    torch.save(voice_prompt, cache_file)
+    torch.save(disk_prompt, cache_file)
 
 
 def clear_voice_prompt_cache() -> int:

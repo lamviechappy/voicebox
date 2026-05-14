@@ -94,7 +94,7 @@ class MLXTTSBackend:
         is_cached = self._is_model_cached(model_size)
 
         with model_load_progress(model_name, is_cached):
-            from mlx_audio.tts import load
+            from mlx_audio.tts.utils import load
 
             logger.info("Loading MLX TTS model %s...", model_size)
 
