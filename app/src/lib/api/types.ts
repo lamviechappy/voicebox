@@ -533,6 +533,7 @@ export interface StoryFlowSpeakerConfig {
   model_size?: '1.7B' | '0.6B' | '1B' | '3B';
   voice_profile_id?: string;
   effects_chain?: EffectConfig[];
+  track_id?: number; // -1 for auto-assign, 0+ for specific track
 }
 
 export interface StoryFlowParseRequest {

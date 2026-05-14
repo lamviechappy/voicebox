@@ -1,9 +1,7 @@
 'use client';
 
-'use client';
-
 import { useState, useCallback, useEffect } from 'react';
-import { Play, Square, RotateCcw, AlertCircle, CheckCircle2, FolderPlus, Check, Sparkles, ChevronDown } from 'lucide-react';
+import { Play, Square, RotateCcw, AlertCircle, CheckCircle2, FolderPlus, Check, Sparkles, ChevronDown, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +20,7 @@ import { useStories, useAddStoryItem } from '@/lib/hooks/useStories';
 import { getLanguageOptionsForEngine } from '@/lib/constants/languages';
 import { apiClient } from '@/lib/api/client';
 import type { StoryFlowGenerationResult, StoryFlowSpeakerConfig } from '@/lib/api/types';
+import { useStoryFlowStateStore } from '@/stores/storyFlowStateStore';
 
 type AppState = 'idle' | 'parsed' | 'generating' | 'done';
 
@@ -181,7 +180,36 @@ export function StoriesTab() {
 export { StoriesTab as StoryFlowTab };
 
 function StoryFlowMain() {
-  const [script, setScript] = useState(`<[Mark]> Hello Emily, how are you today?
+  const [appState, setAppState] = useState<AppState>('idle');
+  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Per-profile settings (local UI state - not persisted)
+  const [profileSettings, setProfileSettings] = useState<Record<string, { language: string; engine: string }>>({});
+
+  // Playback state
+  const [isPlayingAll, setIsPlayingAll] = useState(false);
+  const [currentPlayingIndex, setCurrentPlayingIndex] = useState<number | null>(null);
+
+  // Track number of turns selected when generation started
+  const [generationStartedWithCount, setGenerationStartedWithCount] = useState<number>(0);
+
+  // Zustand store - centrally managed state
+  const {
+    script, setScript,
+    parseResult, setParseResult,
+    generationResults, setGenerationResults,
+    turnSelections, setTurnSelections,
+    storySelections, setStorySelections,
+    trackMode, setTrackMode,
+    trackAssignments, setTrackAssignment,
+    mutedTracks, toggleMuteTrack, isTrackMuted,
+  } = useStoryFlowStateStore();
+
+  // Initialize default script if store is empty
+  useEffect(() => {
+    if (!script) {
+      setScript(`<[Mark]> Hello Emily, how are you today?
 <[Emily]> I'm doing great, thanks for asking! How about you?
 <[Mark]> I'm wonderful! I was just thinking about our trip next week.
 <[Emily]> Oh yes! I'm so excited. Have you finished planning everything?
@@ -189,26 +217,8 @@ function StoryFlowMain() {
 <[Emily]> That's wonderful news! What about the activities?
 <[Mark]> I was thinking we could go hiking on Tuesday. Does that sound good?
 <[Emily]> That sounds perfect! I love hiking.`);
-
-  const [appState, setAppState] = useState<AppState>('idle');
-  const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // Per-profile settings
-  const [profileSettings, setProfileSettings] = useState<Record<string, { language: string; engine: string }>>({});
-
-  // Turn selection state
-  const [turnSelections, setTurnSelections] = useState<Set<number>>(new Set());
-  const [storySelections, setStorySelections] = useState<Set<number>>(new Set());
-
-  // Playback state
-  const [isPlayingAll, setIsPlayingAll] = useState(false);
-  const [currentPlayingIndex, setCurrentPlayingIndex] = useState<number | null>(null);
-
-  const [parseResult, setParseResult] = useState<StoryFlowParseResult | null>(null);
-  const [generationResults, setGenerationResults] = useState<StoryFlowGenerationResult[]>([]);
-  // Track number of turns selected when generation started
-  const [generationStartedWithCount, setGenerationStartedWithCount] = useState<number>(0);
+    }
+  }, [script, setScript]);
 
   // Mood state (Manual + Magic Wand)
   const [moodPopoverOpen, setMoodPopoverOpen] = useState(false);
@@ -237,30 +247,29 @@ function StoryFlowMain() {
   useEffect(() => {
     if (!isPlayingAll || currentPlayingIndex === null || !audioUrl) return;
 
-    // Check if current audio URL matches current playing result
     const currentResult = generationResults[currentPlayingIndex];
     if (!currentResult?.generation_id) return;
 
     const expectedUrl = apiClient.getAudioUrl(currentResult.generation_id);
     if (audioUrl === expectedUrl) {
-      // Audio finished playing, check if it's actually done
       const audioEl = document.querySelector('audio');
       if (audioEl && audioEl.ended) {
-        // Play next
-        const nextIndex = currentPlayingIndex + 1;
-        if (nextIndex < generationResults.length) {
-          const nextResult = generationResults[nextIndex];
-          if (nextResult.status === 'completed' && nextResult.generation_id) {
-            setCurrentPlayingIndex(nextIndex);
-            setAudio(apiClient.getAudioUrl(nextResult.generation_id), nextResult.generation_id, null);
-          }
+        // Find next non-muted, completed track
+        const nextIndex = findNextPlayableIndex(currentPlayingIndex);
+        if (nextIndex >= 0) {
+          setCurrentPlayingIndex(nextIndex);
+          setAudio(
+            apiClient.getAudioUrl(generationResults[nextIndex].generation_id),
+            generationResults[nextIndex].generation_id,
+            null
+          );
         } else {
           setIsPlayingAll(false);
           setCurrentPlayingIndex(null);
         }
       }
     }
-  }, [audioUrl, isPlayingAll, currentPlayingIndex, generationResults, setAudio]);
+  }, [audioUrl, isPlayingAll, currentPlayingIndex, generationResults, setAudio, findNextPlayableIndex]);
 
   const initProfileSettings = useCallback(() => {
     if (!profiles) return {};
@@ -287,6 +296,7 @@ function StoryFlowMain() {
         language: (profileSettings[p.name]?.language ?? p.language) as StoryFlowSpeakerConfig['language'],
         engine: (profileSettings[p.name]?.engine ?? p.default_engine ?? 'qwen') as StoryFlowSpeakerConfig['engine'],
         voice_profile_id: p.id,
+        track_id: trackMode === 'manual' ? trackAssignments[p.name] ?? -1 : undefined,
       }));
       const result = await parseScript({ script, speakers });
       setParseResult(result);
@@ -298,7 +308,7 @@ function StoryFlowMain() {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [script, profiles, profileSettings, initProfileSettings, parseScript]);
+  }, [script, profiles, profileSettings, trackMode, trackAssignments, initProfileSettings, parseScript]);
 
   // Apply emotion - Manual or Magic Wand (AI)
   const handleApplyEmotion = useCallback(async () => {
@@ -405,6 +415,7 @@ function StoryFlowMain() {
         language: (profileSettings[p.name]?.language ?? p.language) as StoryFlowSpeakerConfig['language'],
         engine: (profileSettings[p.name]?.engine ?? p.default_engine ?? 'qwen') as StoryFlowSpeakerConfig['engine'],
         voice_profile_id: p.id,
+        track_id: trackMode === 'manual' ? trackAssignments[p.name] ?? -1 : undefined,
       }));
       const result = await generateStoryFlow({ script: filteredScript, speakers, generate_in_order: true });
 
@@ -421,51 +432,54 @@ function StoryFlowMain() {
       setError(err instanceof Error ? err.message : String(err));
       setAppState('parsed');
     }
-  }, [script, profiles, profileSettings, parseResult, selectedStoryId, turnSelections, generateStoryFlow]);
+  }, [script, profiles, profileSettings, trackMode, trackAssignments, parseResult, selectedStoryId, turnSelections, generateStoryFlow]);
 
   const toggleTurnSelection = useCallback((index: number) => {
-    setTurnSelections((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  }, []);
+    const next = new Set(turnSelections);
+    if (next.has(index)) next.delete(index);
+    else next.add(index);
+    setTurnSelections(next);
+  }, [turnSelections, setTurnSelections]);
 
   const selectAllTurns = useCallback(() => {
     if (!parseResult) return;
     setTurnSelections(new Set(parseResult.turns.map((_, i) => i)));
-  }, [parseResult]);
+  }, [parseResult, setTurnSelections]);
 
   const deselectAllTurns = useCallback(() => {
     setTurnSelections(new Set());
-  }, []);
+  }, [setTurnSelections]);
 
   const toggleStorySelection = useCallback((index: number) => {
-    setStorySelections((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  }, []);
+    const next = new Set(storySelections);
+    if (next.has(index)) next.delete(index);
+    else next.add(index);
+    setStorySelections(next);
+  }, [storySelections, setStorySelections]);
 
   const selectAllStory = useCallback(() => {
     if (!parseResult) return;
     setStorySelections(new Set(parseResult.turns.map((_, i) => i)));
-  }, [parseResult]);
+  }, [parseResult, setStorySelections]);
 
   const deselectAllStory = useCallback(() => {
     setStorySelections(new Set());
-  }, []);
+  }, [setStorySelections]);
 
   const handleAddSelectedToStory = useCallback(async () => {
     if (!selectedStoryId) return;
     const story = stories?.find((s) => s.id === selectedStoryId);
     const storyName = story?.name ?? 'Story';
-    const selectedResults = generationResults.filter(
+    let selectedResults = generationResults.filter(
       (r, i) => storySelections.has(i) && r.status === 'completed' && r.generation_id,
     );
+    // Filter out muted tracks if in manual mode
+    if (trackMode === 'manual') {
+      selectedResults = selectedResults.filter((r) => {
+        const track = trackAssignments[r.speaker_name];
+        return track === undefined || track === -1 || !isTrackMuted(track);
+      });
+    }
     for (const result of selectedResults) {
       try {
         await addStoryItem.mutateAsync({
@@ -475,7 +489,7 @@ function StoryFlowMain() {
       } catch { /* skip failed */ }
     }
     toast({ title: `Added ${selectedResults.length} items to "${storyName}"` });
-  }, [selectedStoryId, stories, generationResults, storySelections, addStoryItem, toast]);
+  }, [selectedStoryId, stories, generationResults, storySelections, addStoryItem, toast, trackMode, trackAssignments, isTrackMuted]);
 
   const handleAddOneToStory = useCallback(async (result: StoryFlowGenerationResult, storyId: string, storyName: string) => {
     if (!result.generation_id) return;
@@ -497,21 +511,41 @@ function StoryFlowMain() {
     [setAudioWithAutoPlay],
   );
 
+  // Helper to find next non-muted, completed result index
+  const findNextPlayableIndex = useCallback((startIdx: number) => {
+    return generationResults.findIndex((r, idx) => {
+      if (idx <= startIdx) return false;
+      if (r.status !== 'completed' || !r.generation_id) return false;
+      if (trackMode === 'manual') {
+        const track = trackAssignments[r.speaker_name];
+        if (track !== undefined && track !== -1 && isTrackMuted(track)) return false;
+      }
+      return true;
+    });
+  }, [generationResults, trackMode, trackAssignments, isTrackMuted]);
+
   const playAllSequentially = useCallback(() => {
     if (!generationResults.length) return;
-    const firstCompleted = generationResults.findIndex(
-      (r) => r.status === 'completed' && r.generation_id,
-    );
-    if (firstCompleted >= 0) {
+    // Find first non-muted completed result
+    const firstIndex = generationResults.findIndex((r) => {
+      if (r.status !== 'completed' || !r.generation_id) return false;
+      // Skip muted tracks in manual mode
+      if (trackMode === 'manual') {
+        const track = trackAssignments[r.speaker_name];
+        if (track !== undefined && track !== -1 && isTrackMuted(track)) return false;
+      }
+      return true;
+    });
+    if (firstIndex >= 0) {
       setIsPlayingAll(true);
-      setCurrentPlayingIndex(firstCompleted);
+      setCurrentPlayingIndex(firstIndex);
       setAudioWithAutoPlay(
-        apiClient.getAudioUrl(generationResults[firstCompleted].generation_id),
-        generationResults[firstCompleted].generation_id,
+        apiClient.getAudioUrl(generationResults[firstIndex].generation_id),
+        generationResults[firstIndex].generation_id,
         null,
       );
     }
-  }, [generationResults, setAudioWithAutoPlay]);
+  }, [generationResults, setAudioWithAutoPlay, trackMode, trackAssignments, isTrackMuted]);
 
   const stopPlayback = useCallback(() => {
     setIsPlayingAll(false);
@@ -528,7 +562,8 @@ function StoryFlowMain() {
     setStorySelections(new Set());
     setIsPlayingAll(false);
     setCurrentPlayingIndex(null);
-  }, []);
+    // Reset store state for track mode/assignments? No, user wants to remember last choice, so keep them.
+  }, [setParseResult, setGenerationResults, setTurnSelections, setStorySelections]);
 
   const updateProfileSetting = useCallback((profileName: string, field: 'language' | 'engine', value: string) => {
     setProfileSettings((prev) => ({
@@ -540,6 +575,14 @@ function StoryFlowMain() {
   const hasProfiles = profiles && profiles.length > 0;
   const selectedCount = turnSelections.size;
   const storySelectedCount = storySelections.size;
+
+  // Helper to determine if a result's track is muted (manual mode only)
+  const isResultMuted = (result: StoryFlowGenerationResult) => {
+    if (trackMode !== 'manual') return false;
+    const track = trackAssignments[result.speaker_name];
+    if (track === undefined || track === -1) return false;
+    return isTrackMuted(track);
+  };
 
   // Extract unique speaker names from parsed script
   const speakersInScript = parseResult
@@ -557,7 +600,21 @@ function StoryFlowMain() {
         {/* Left Panel: Profile settings */}
         <div className="flex flex-col min-h-0 overflow-hidden w-full max-w-[360px] shrink-0 gap-4">
           <Card className="p-4 flex flex-col gap-3 overflow-y-auto">
-            <h2 className="font-semibold text-sm">Profile Settings</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-sm">Profile Settings</h2>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs">Track Mode:</Label>
+                <Select value={trackMode} onValueChange={(v: 'auto' | 'manual') => setTrackMode(v)}>
+                  <SelectTrigger className="h-6 text-xs w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto</SelectItem>
+                    <SelectItem value="manual">Manual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             {relevantProfiles.length > 0 ? (
               <div className="flex flex-col gap-3">
                 {relevantProfiles.map((profile) => {
@@ -566,11 +623,36 @@ function StoryFlowMain() {
                     engine: profile.default_engine ?? 'qwen',
                   };
                   const langOptions = getLanguageOptionsForEngine(settings.engine);
+                  const assignedTrack = trackAssignments[profile.name] ?? -1;
                   return (
                     <div key={profile.id} className="border border-border rounded-md p-3 space-y-2">
-                      <Badge variant="secondary" className="capitalize shrink-0">
-                        {profile.name}
-                      </Badge>
+                      <div className="flex items-center justify-between">
+                        <Badge variant="secondary" className="capitalize shrink-0">
+                          {profile.name}
+                        </Badge>
+                        {trackMode === 'manual' && (
+                          <div className="flex items-center gap-1">
+                            <Label className="text-[10px] text-muted-foreground">Track</Label>
+                            <Select
+                              value={String(assignedTrack)}
+                              onValueChange={(v) => setTrackAssignment(profile.name, parseInt(v))}
+                            >
+                              <SelectTrigger className="h-6 text-xs w-16">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="-1">Auto</SelectItem>
+                                <SelectItem value="0">0</SelectItem>
+                                <SelectItem value="1">1</SelectItem>
+                                <SelectItem value="2">2</SelectItem>
+                                <SelectItem value="3">3</SelectItem>
+                                <SelectItem value="4">4</SelectItem>
+                                <SelectItem value="5">5</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <label className="text-[10px] text-muted-foreground">Language</label>
@@ -927,11 +1009,12 @@ function StoryFlowMain() {
               <div className="flex-1 overflow-y-auto flex flex-col gap-2">
                 {generationResults.map((result, idx) => {
                   const isCurrentlyPlaying = isPlayingAll && currentPlayingIndex === idx;
+                  const muted = isResultMuted(result);
                   return (
                     <div
                       key={result.turn_index}
                       className={`flex items-center gap-2 border rounded-md p-2 ${
-                        isCurrentlyPlaying ? 'border-accent bg-accent/10' : 'border-border'
+                        isCurrentlyPlaying ? 'border-accent bg-accent/10' : muted ? 'border-border opacity-60' : 'border-border'
                       }`}
                     >
                       {/* Play button */}
@@ -940,11 +1023,11 @@ function StoryFlowMain() {
                         size="sm"
                         className="h-7 w-7 p-0 shrink-0"
                         onClick={() => playAudio(result)}
-                        disabled={result.status !== 'completed'}
-                        title={result.status === 'completed' ? 'Play' : 'Failed'}
+                        disabled={result.status !== 'completed' || muted}
+                        title={result.status === 'completed' ? (muted ? 'Muted' : 'Play') : 'Failed'}
                       >
                         {result.status === 'completed' ? (
-                          <Play className="h-3 w-3" />
+                          muted ? <VolumeX className="h-3 w-3 text-red-500" /> : <Play className="h-3 w-3" />
                         ) : (
                           <AlertCircle className="h-3 w-3 text-red-500" />
                         )}
@@ -979,12 +1062,36 @@ function StoryFlowMain() {
                           {isCurrentlyPlaying && (
                             <Badge variant="outline" className="text-[10px] h-4 shrink-0">Playing</Badge>
                           )}
+                          {muted && (
+                            <Badge variant="outline" className="text-[10px] h-4 shrink-0 text-red-500">Muted</Badge>
+                          )}
                         </div>
                         <p className="text-[10px] text-muted-foreground truncate">{result.text}</p>
                         {result.status === 'failed' && result.error && (
                           <p className="text-[10px] text-red-400 truncate">{result.error}</p>
                         )}
                       </div>
+
+                      {/* Mute toggle for manual mode tracks */}
+                      {trackMode === 'manual' && (trackAssignments[result.speaker_name] ?? -1) >= 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const track = trackAssignments[result.speaker_name];
+                            if (track !== undefined && track >= 0) toggleMuteTrack(track);
+                          }}
+                          title={muted ? 'Unmute track' : 'Mute track'}
+                        >
+                          {muted ? (
+                            <VolumeX className="h-3 w-3 text-red-500" />
+                          ) : (
+                            <Volume2 className="h-3 w-3" />
+                          )}
+                        </Button>
+                      )}
 
                       {/* Add to story button for individual */}
                       {selectedStoryId && result.status === 'completed' && (
@@ -996,7 +1103,8 @@ function StoryFlowMain() {
                             const story = stories?.find((s) => s.id === selectedStoryId);
                             handleAddOneToStory(result, selectedStoryId, story?.name ?? 'Story');
                           }}
-                          title="Add to story"
+                          title={muted ? 'Muted - cannot add' : 'Add to story'}
+                          disabled={muted}
                         >
                           <FolderPlus className="h-3 w-3" />
                         </Button>

@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Check,
   Copy,
@@ -36,10 +38,12 @@ import {
   useSplitStoryItem,
   useTrimStoryItem,
   useUpdateStoryItemVolume,
+  useAddStoryItem,
 } from '@/lib/hooks/useStories';
 import { cn } from '@/lib/utils/cn';
 import { useGenerationStore } from '@/stores/generationStore';
 import { useStoryStore } from '@/stores/storyStore';
+import { useUndoStore } from '@/stores/undoStore';
 
 // Clip waveform component with trim support
 function ClipWaveform({
@@ -215,7 +219,7 @@ const DEFAULT_TRACKS = [1, 0, -1]; // Default 3 tracks
 const MIN_EDITOR_HEIGHT = 120;
 const MAX_EDITOR_HEIGHT = 500;
 
-export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
+export function StoryTrackEditor({ storyId, items: propItems }: StoryTrackEditorProps) {
   const [pixelsPerSecond, setPixelsPerSecond] = useState(FALLBACK_PIXELS_PER_SECOND);
   const hasAppliedDefaultZoomRef = useRef(false);
   const [draggingItem, setDraggingItem] = useState<string | null>(null);
@@ -234,12 +238,15 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
   const removeItem = useRemoveStoryItem();
   const setItemVersion = useSetStoryItemVersion();
   const updateVolume = useUpdateStoryItemVolume();
+  const addItem = useAddStoryItem();
   const { toast } = useToast();
   const addPendingGeneration = useGenerationStore((s) => s.addPendingGeneration);
   // User-added empty tracks. Live in component state because a track only
   // earns its keep once a clip lands on it — no need to persist an unused
   // row across reloads.
   const [extraTracks, setExtraTracks] = useState<number[]>([]);
+  const [items, setItems] = useState<StoryItemDetail[]>(propItems);
+  const undoStore = useUndoStore();
 
   // Selection state
   const selectedClipId = useStoryStore((state) => state.selectedClipId);
@@ -266,16 +273,16 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     setSelectedClipIds(new Set());
   };
 
-  // Reset multi-selection when items change
+  // Reset multi-selection when items change (external updates)
   useEffect(() => {
     setSelectedClipIds((prev) => {
       const next = new Set<string>();
       for (const id of prev) {
-        if (items.some((i) => i.id === id)) next.add(id);
+        if (propItems.some((i) => i.id === id)) next.add(id);
       }
       return next;
     });
-  }, [items]);
+  }, [propItems]);
 
   // Selected clip item (for version picker)
   const selectedItem = useMemo(
@@ -548,6 +555,13 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     setPixelsPerSecond((prev) => Math.max(prev / 1.5, minPps));
   };
 
+  const handleZoomToFit = () => {
+    if (visibleTrackWidth <= 0 || projectSeconds <= 0) return;
+    // Fit entire timeline into view
+    const newPps = visibleTrackWidth / projectSeconds;
+    setPixelsPerSecond(Math.max(minPps, Math.min(maxPps, newPps)));
+  };
+
   // Resize handlers
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -708,6 +722,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
 
     // Only update if values changed
     if (finalTrimStart !== initialTrimStart || finalTrimEnd !== initialTrimEnd) {
+      undoStore.getState().takeSnapshot([...items]);
       trimItem.mutate(
         {
           storyId,
@@ -733,7 +748,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     setTrimSide(null);
     setTempTrimValues(null);
     trimStartItemRef.current = null;
-  }, [trimmingItem, trimSide, tempTrimValues, storyId, trimItem, toast]);
+  }, [trimmingItem, trimSide, tempTrimValues, storyId, trimItem, toast, undoStore, items]);
 
   const handleSplit = useCallback(() => {
     if (!selectedClipId || splitItem.isPending) return;
@@ -756,6 +771,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
       return;
     }
 
+    undoStore.getState().takeSnapshot([...items]);
     splitItem.mutate(
       {
         storyId,
@@ -784,11 +800,13 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     splitItem,
     toast,
     setSelectedClipId,
+    undoStore,
   ]);
 
   const handleDuplicate = useCallback(() => {
     if (!selectedClipId) return;
 
+    undoStore.getState().takeSnapshot([...items]);
     duplicateItem.mutate(
       {
         storyId,
@@ -804,11 +822,12 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
         },
       },
     );
-  }, [selectedClipId, storyId, duplicateItem, toast]);
+  }, [selectedClipId, storyId, duplicateItem, toast, undoStore, items]);
 
   const handleDelete = useCallback(() => {
     if (!selectedClipId) return;
 
+    undoStore.getState().takeSnapshot([...items]);
     removeItem.mutate(
       {
         storyId,
@@ -827,7 +846,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
         },
       },
     );
-  }, [selectedClipId, storyId, removeItem, toast, setSelectedClipId]);
+  }, [selectedClipId, storyId, removeItem, toast, setSelectedClipId, undoStore, items]);
 
 // Regenerate single selected clip
   const handleRegenerate = useCallback(async () => {
@@ -847,6 +866,9 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
   // Delete selected clips (batch)
   const handleDeleteSelected = useCallback(() => {
     const idsToDelete = Array.from(selectedClipIds);
+    if (idsToDelete.length === 0) return;
+
+    undoStore.getState().takeSnapshot([...items]);
     idsToDelete.forEach((id) => {
       removeItem.mutate(
         { storyId, itemId: id },
@@ -862,7 +884,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
       );
     });
     setSelectedClipIds(new Set());
-  }, [selectedClipIds, storyId, removeItem, toast]);
+  }, [selectedClipIds, storyId, removeItem, toast, undoStore, items]);
 
   // Move selected clips by milliseconds
   const moveSelectedClips = useCallback((deltaMs: number) => {
@@ -872,6 +894,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     // Get all selected items sorted by time
     const selectedItemsList = sortedItems.filter((i) => idsToMove.includes(i.id));
     if (selectedItemsList.length === 0) return;
+    undoStore.getState().takeSnapshot([...items]);
 
     // Calculate new positions
     const updates = selectedItemsList.map((item) => ({
@@ -895,7 +918,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
         },
       );
     });
-  }, [selectedClipIds, sortedItems, storyId, moveItem, toast]);
+  }, [selectedClipIds, sortedItems, storyId, moveItem, toast, undoStore, items]);
 
   // Move selected clips to different track
   const moveSelectedClipsToTrack = useCallback((deltaTrack: number) => {
@@ -904,6 +927,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
 
     const selectedItemsList = sortedItems.filter((i) => idsToMove.includes(i.id));
     if (selectedItemsList.length === 0) return;
+    undoStore.getState().takeSnapshot([...items]);
 
     selectedItemsList.forEach((item) => {
       const newTrack = item.track + deltaTrack;
@@ -920,7 +944,118 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
         },
       );
     });
-  }, [selectedClipIds, sortedItems, storyId, moveItem, toast]);
+  }, [selectedClipIds, sortedItems, storyId, moveItem, toast, undoStore, items]);
+
+  // Undo/Redo implementation
+  const revertItemsToSnapshot = useCallback(async (fromItems: StoryItemDetail[], toItems: StoryItemDetail[]) => {
+    const fromMap = new Map(fromItems.map(i => [i.id, i]));
+    const toMap = new Map(toItems.map(i => [i.id, i]));
+
+    const toDeleteIds = fromItems.filter(i => !toMap.has(i.id)).map(i => i.id);
+    const toAdd = toItems.filter(i => !fromMap.has(i.id));
+    const commonIds = fromItems.filter(i => toMap.has(i.id)).map(i => i.id);
+
+    await Promise.all(toDeleteIds.map(id => removeItem.mutateAsync({ storyId, itemId: id })));
+
+    const addPromises = toAdd.map(async (item) => {
+      const created = await addItem.mutateAsync({
+        storyId,
+        data: {
+          generation_id: item.generation_id,
+          start_time_ms: item.start_time_ms,
+          track: item.track,
+        },
+      });
+      if (created.trim_start_ms !== item.trim_start_ms || created.trim_end_ms !== item.trim_end_ms) {
+        await trimItem.mutateAsync({
+          storyId,
+          itemId: created.id,
+          data: { trim_start_ms: item.trim_start_ms, trim_end_ms: item.trim_end_ms },
+        });
+      }
+      if (created.volume !== item.volume) {
+        await updateVolume.mutateAsync({
+          storyId,
+          itemId: created.id,
+          data: { volume: item.volume },
+        });
+      }
+    });
+    await Promise.all(addPromises);
+
+    const updatePromises = commonIds.map(async (id) => {
+      const from = fromMap.get(id)!;
+      const to = toMap.get(id)!;
+      if (from.start_time_ms !== to.start_time_ms || from.track !== to.track) {
+        await moveItem.mutateAsync({
+          storyId,
+          itemId: id,
+          data: { start_time_ms: to.start_time_ms, track: to.track },
+        });
+      }
+      if (from.trim_start_ms !== to.trim_start_ms || from.trim_end_ms !== to.trim_end_ms) {
+        await trimItem.mutateAsync({
+          storyId,
+          itemId: id,
+          data: { trim_start_ms: to.trim_start_ms, trim_end_ms: to.trim_end_ms },
+        });
+      }
+      if (from.volume !== to.volume) {
+        await updateVolume.mutateAsync({
+          storyId,
+          itemId: id,
+          data: { volume: to.volume },
+        });
+      }
+    });
+    await Promise.all(updatePromises);
+  }, [storyId, removeItem, addItem, trimItem, updateVolume, moveItem]);
+
+  const handleUndo = useCallback(async () => {
+    const { past } = undoStore.getState();
+    if (past.length === 0) return;
+
+    const currentItems = items;
+    const previousItems = undoStore.getState().undo(currentItems);
+    setItems(previousItems);
+    try {
+      await revertItemsToSnapshot(currentItems, previousItems);
+    } catch (error) {
+      toast({
+        title: 'Undo failed',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    }
+  }, [items, undoStore, revertItemsToSnapshot, toast]);
+
+  const handleRedo = useCallback(async () => {
+    const { future } = undoStore.getState();
+    if (future.length === 0) return;
+
+    const currentItems = items;
+    const nextItems = undoStore.getState().redo(currentItems);
+    setItems(nextItems);
+    try {
+      await revertItemsToSnapshot(currentItems, nextItems);
+    } catch (error) {
+      toast({
+        title: 'Redo failed',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    }
+  }, [items, undoStore, revertItemsToSnapshot, toast]);
+
+  // Sync local items with prop changes
+  useEffect(() => {
+    setItems(propItems);
+  }, [propItems]);
+
+  // Clear undo history when story changes
+  useEffect(() => {
+    undoStore.getState().clear();
+  }, [storyId, undoStore]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -978,6 +1113,16 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
           const deltaTrack = e.shiftKey ? -1 : 0;
           if (deltaTrack !== 0) moveSelectedClipsToTrack(deltaTrack);
         }
+      } else if (e.key === 'Z' && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (e.key === 'Z' && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+        e.preventDefault();
+        handleRedo();
+      } else if (e.key === 'Z' && e.shiftKey && !(e.metaKey || e.ctrlKey)) {
+        // Shift+Z: Zoom to fit
+        e.preventDefault();
+        handleZoomToFit();
       }
     };
 
@@ -993,6 +1138,9 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     handlePlayPause,
     moveSelectedClips,
     moveSelectedClipsToTrack,
+    handleZoomToFit,
+    handleUndo,
+    handleRedo,
   ]);
 
   // Add global mouse listeners for trimming
@@ -1071,6 +1219,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
 
     // Check if position changed
     if (newTimeMs !== item.start_time_ms || newTrack !== item.track) {
+      undoStore.getState().takeSnapshot([...items]);
       moveItem.mutate(
         {
           storyId,
@@ -1093,7 +1242,7 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
     }
 
     setDraggingItem(null);
-  }, [draggingItem, dragPosition, items, tracks, pixelsToMs, storyId, moveItem, toast]);
+  }, [draggingItem, dragPosition, items, tracks, pixelsToMs, storyId, moveItem, toast, undoStore]);
 
   // Get track index for rendering
   const getTrackIndex = (trackNumber: number) => tracks.indexOf(trackNumber);
@@ -1326,7 +1475,8 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                   storyId={storyId}
                   itemId={selectedItem.id}
                   volume={selectedItem.volume}
-                  onChange={(value) =>
+                  onChange={(value) => {
+                    undoStore.getState().takeSnapshot([...items]);
                     updateVolume.mutate(
                       {
                         storyId,
@@ -1342,8 +1492,8 @@ export function StoryTrackEditor({ storyId, items }: StoryTrackEditorProps) {
                           });
                         },
                       },
-                    )
-                  }
+                    );
+                  }}
                 />
               )}
               <Button

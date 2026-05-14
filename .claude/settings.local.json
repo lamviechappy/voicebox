@@ -47,7 +47,8 @@
       "Bash(python *)",
       "Bash(./backend/venv/bin/python *)",
       "Bash(./backend/venv/bin/pip show *)",
-      "Bash(./backend/venv/bin/pip install *)"
+      "Bash(./backend/venv/bin/pip install *)",
+      "Bash(sg *)"
     ]
   },
   "enabledMcpjsonServers": [

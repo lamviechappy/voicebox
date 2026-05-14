@@ -816,6 +816,7 @@ class StoryFlowSpeakerConfig(BaseModel):
     model_size: Optional[str] = Field(default="1.7B", pattern=MODEL_SIZE_PATTERN)
     voice_profile_id: Optional[str] = Field(None, description="Voice profile ID for this speaker")
     effects_chain: Optional[List["EffectConfig"]] = Field(None, description="Effects chain for this speaker")
+    track_id: Optional[int] = Field(None, description="Track ID for speaker diarization (-1 for auto-assign)")
 
 
 class StoryFlowParseRequest(BaseModel):
